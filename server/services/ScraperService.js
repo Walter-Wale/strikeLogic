@@ -481,8 +481,31 @@ class ScraperService {
       const url = `https://www.flashscore.com/match/${flashscoreId}/#/h2h/overall`;
       await page.goto(url, { waitUntil: "networkidle2", timeout: 60000 });
 
-      // Wait for H2H content to load
+      // Wait for initial H2H content to load
       await delay(DEFAULT_SCRAPE_DELAY);
+
+      // CRITICAL: Scroll down the page to trigger lazy-loading of all 3 H2H sections
+      // FlashScore doesn't render "Away Form" and "Direct H2H" sections until you scroll
+      emitLog(
+        this.io,
+        `📜 Scrolling page to load all H2H sections (lazy-loading fix)...`,
+        "info",
+      );
+
+      await page.evaluate(() => {
+        // Scroll to bottom to trigger lazy-loading
+        window.scrollTo(0, document.body.scrollHeight);
+      });
+
+      // Wait for lazy-loaded sections to render
+      await delay(2000);
+
+      // Scroll back to top for better screenshot visibility
+      await page.evaluate(() => {
+        window.scrollTo(0, 0);
+      });
+
+      await delay(1000);
 
       emitLog(
         this.io,
@@ -681,8 +704,8 @@ class ScraperService {
   }
 
   /**
-   * Scrape all H2H sections by index position
-   * Index 0 → HOME_FORM, Index 1 → AWAY_FORM, Index 2 → DIRECT_H2H
+   * Scrape all H2H sections by dynamically identifying each section type from header text
+   * FlashScore sections can appear in any order or be lazy-loaded
    * @param {Page} page - Puppeteer page instance
    * @param {number} parentMatchId - Parent match ID for foreign key
    * @param {string} homeTeam - Home team name for logging
@@ -690,12 +713,6 @@ class ScraperService {
    * @returns {Promise<Array>} Combined array of all H2H data
    */
   async _scrapeSectionsByIndex(page, parentMatchId, homeTeam, awayTeam) {
-    const sectionMapping = ["HOME_FORM", "AWAY_FORM", "DIRECT_H2H"];
-    const sectionLabels = [
-      `${homeTeam} recent form`,
-      `${awayTeam} recent form`,
-      "Direct H2H",
-    ];
     const allData = [];
 
     try {
@@ -707,10 +724,71 @@ class ScraperService {
 
       emitLog(this.io, `📋 Processing ${sectionCount} H2H sections...`, "info");
 
-      // Iterate through each section by index
-      for (let i = 0; i < Math.min(sectionCount, 3); i++) {
-        const sectionType = sectionMapping[i];
-        const label = sectionLabels[i];
+      // Iterate through each section and identify by header text
+      for (let i = 0; i < sectionCount; i++) {
+        // Dynamically determine section type by reading header text
+        const sectionInfo = await page.evaluate(
+          (containerSel, index, home, away) => {
+            const sections = document.querySelectorAll(containerSel);
+            if (index >= sections.length) return null;
+
+            const section = sections[index];
+            
+            // Find header text - FlashScore uses various selectors
+            const headerSelectors = [
+              '.wcl-headerSection_SGpOR span',
+              '[data-testid="wcl-scores-overline-02"]',
+              '.wcl-bold_NZXv6',
+              'span.wcl-scores-overline-02_bpqU7'
+            ];
+
+            let headerText = '';
+            for (const sel of headerSelectors) {
+              const headerEl = section.querySelector(sel);
+              if (headerEl && headerEl.textContent.trim()) {
+                headerText = headerEl.textContent.trim();
+                break;
+              }
+            }
+
+            // Determine section type from header text
+            let sectionType = null;
+            let label = '';
+
+            if (headerText.toLowerCase().includes('head-to-head') || 
+                headerText.toLowerCase().includes('head to head')) {
+              sectionType = 'DIRECT_H2H';
+              label = 'Direct H2H';
+            } else if (headerText.includes(home) || 
+                       headerText.toLowerCase().includes('last matches') && 
+                       headerText.includes(home)) {
+              sectionType = 'HOME_FORM';
+              label = `${home} recent form`;
+            } else if (headerText.includes(away) || 
+                       headerText.toLowerCase().includes('last matches') && 
+                       headerText.includes(away)) {
+              sectionType = 'AWAY_FORM';
+              label = `${away} recent form`;
+            }
+
+            return { sectionType, label, headerText };
+          },
+          selectors.H2H_SELECTORS.CONTAINERS,
+          i,
+          homeTeam,
+          awayTeam,
+        );
+
+        if (!sectionInfo || !sectionInfo.sectionType) {
+          emitLog(
+            this.io,
+            `⚠️ Could not identify section ${i + 1} (header: "${sectionInfo?.headerText || 'unknown'}") - skipping`,
+            "warning",
+          );
+          continue;
+        }
+
+        const { sectionType, label } = sectionInfo;
 
         emitLog(this.io, `📊 Extracting ${label}...`, "info");
 
