@@ -20,8 +20,9 @@ const io = initializeSocket(server);
 app.set("io", io);
 
 // Sync database and start server
+// alter:true adds new columns (like flashscore_url) without dropping existing data
 db.sequelize
-  .sync()
+  .sync({ alter: true })
   .then(() => {
     console.log("✓ Database synced successfully");
     console.log("✓ Tables: leagues, matches, h2h_history");

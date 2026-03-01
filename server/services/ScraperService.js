@@ -330,6 +330,17 @@ class ScraperService {
               currentElement = currentElement.previousElementSibling;
             }
 
+            // Extract full match URL path for H2H navigation
+            // FlashScore rows contain <a href="/match/football/team1-Id/team2-Id/#summary">
+            const matchLink = matchEl.querySelector(
+              'a[href*="/match/football/"]',
+            );
+            const rawHref = matchLink ? matchLink.getAttribute("href") : null;
+            // Strip hash fragment to get base path: /match/football/team1-Id/team2-Id/
+            const matchUrl = rawHref
+              ? rawHref.split("#")[0].replace(/\/?$/, "/")
+              : null;
+
             if (flashscoreId && homeTeam && awayTeam) {
               extractedMatches.push({
                 flashscoreId,
@@ -337,6 +348,7 @@ class ScraperService {
                 awayTeam,
                 matchTime: matchTime || "TBD",
                 leagueName: leagueName,
+                matchUrl,
               });
             }
           } catch (err) {
@@ -477,39 +489,89 @@ class ScraperService {
         "info",
       );
 
-      // Navigate to H2H page with increased timeout for slow connections
-      const url = `https://www.flashscore.com/match/${flashscoreId}/#/h2h/overall`;
-      await page.goto(url, { waitUntil: "networkidle2", timeout: 60000 });
+      // Build H2H URL using the stored match URL (captures all 3 sections on one page)
+      // Stored URL may be absolute (https://...) or relative (/match/football/...)
+      // Need just the pathname so we can append h2h/overall/
+      let urlBase;
+      if (match.flashscoreUrl) {
+        let pathname = match.flashscoreUrl;
+        if (pathname.startsWith("http")) {
+          // Extract just the path from the full URL, drop any query string
+          pathname = new URL(pathname).pathname;
+        }
+        // Ensure trailing slash before appending h2h segment
+        pathname = pathname.replace(/\/?$/, "/");
+        urlBase = `https://www.flashscore.com${pathname}h2h/overall/`;
+      } else {
+        // Fallback for rows saved before flashscoreUrl was captured
+        urlBase = `https://www.flashscore.com/match/${flashscoreId}/#/h2h/overall`;
+      }
 
-      // Wait for initial H2H content to load
-      await delay(DEFAULT_SCRAPE_DELAY);
+      emitLog(this.io, `🔗 H2H URL: ${urlBase}`, "info");
+      await page.goto(urlBase, { waitUntil: "networkidle2", timeout: 60000 });
 
-      // CRITICAL: Scroll down the page to trigger lazy-loading of all 3 H2H sections
-      // FlashScore doesn't render "Away Form" and "Direct H2H" sections until you scroll
+      // Wait for at least one H2H section to appear
+      await page
+        .waitForSelector(".h2h__section", { timeout: 15000 })
+        .catch(() => null);
+
+      const sectionCount = await page.$$eval(
+        ".h2h__section",
+        (els) => els.length,
+      );
       emitLog(
         this.io,
-        `📜 Scrolling page to load all H2H sections (lazy-loading fix)...`,
-        "info",
+        `✓ ${sectionCount}/3 H2H sections detected in DOM`,
+        sectionCount === 3 ? "success" : "warning",
       );
-
-      await page.evaluate(() => {
-        // Scroll to bottom to trigger lazy-loading
-        window.scrollTo(0, document.body.scrollHeight);
-      });
-
-      // Wait for lazy-loaded sections to render
-      await delay(2000);
-
-      // Scroll back to top for better screenshot visibility
-      await page.evaluate(() => {
-        window.scrollTo(0, 0);
-      });
-
-      await delay(1000);
 
       emitLog(
         this.io,
         `📊 Scanning H2H sections for ${match.homeTeam} vs ${match.awayTeam}...`,
+        "info",
+      );
+
+      // DEBUG: Check what sections exist on the page
+      const debugInfo = await page.evaluate((sel) => {
+        const sections = document.querySelectorAll(sel);
+        const sectionDetails = [];
+
+        sections.forEach((section, index) => {
+          // Get header text
+          const headerSelectors = [
+            ".wcl-headerSection_SGpOR span",
+            '[data-testid="wcl-scores-overline-02"]',
+            ".wcl-bold_NZXv6",
+          ];
+
+          let headerText = "";
+          for (const hSel of headerSelectors) {
+            const headerEl = section.querySelector(hSel);
+            if (headerEl) {
+              headerText = headerEl.textContent.trim();
+              break;
+            }
+          }
+
+          const rowCount = section.querySelectorAll(".h2h__row").length;
+
+          sectionDetails.push({
+            index,
+            headerText,
+            rowCount,
+            hasRows: rowCount > 0,
+          });
+        });
+
+        return {
+          totalSections: sections.length,
+          sections: sectionDetails,
+        };
+      }, selectors.H2H_SELECTORS.CONTAINERS);
+
+      emitLog(
+        this.io,
+        `[DEBUG] Found ${debugInfo.totalSections} sections: ${JSON.stringify(debugInfo.sections)}`,
         "info",
       );
 
@@ -733,16 +795,16 @@ class ScraperService {
             if (index >= sections.length) return null;
 
             const section = sections[index];
-            
+
             // Find header text - FlashScore uses various selectors
             const headerSelectors = [
-              '.wcl-headerSection_SGpOR span',
+              ".wcl-headerSection_SGpOR span",
               '[data-testid="wcl-scores-overline-02"]',
-              '.wcl-bold_NZXv6',
-              'span.wcl-scores-overline-02_bpqU7'
+              ".wcl-bold_NZXv6",
+              "span.wcl-scores-overline-02_bpqU7",
             ];
 
-            let headerText = '';
+            let headerText = "";
             for (const sel of headerSelectors) {
               const headerEl = section.querySelector(sel);
               if (headerEl && headerEl.textContent.trim()) {
@@ -753,21 +815,27 @@ class ScraperService {
 
             // Determine section type from header text
             let sectionType = null;
-            let label = '';
+            let label = "";
 
-            if (headerText.toLowerCase().includes('head-to-head') || 
-                headerText.toLowerCase().includes('head to head')) {
-              sectionType = 'DIRECT_H2H';
-              label = 'Direct H2H';
-            } else if (headerText.includes(home) || 
-                       headerText.toLowerCase().includes('last matches') && 
-                       headerText.includes(home)) {
-              sectionType = 'HOME_FORM';
+            if (
+              headerText.toLowerCase().includes("head-to-head") ||
+              headerText.toLowerCase().includes("head to head")
+            ) {
+              sectionType = "DIRECT_H2H";
+              label = "Direct H2H";
+            } else if (
+              headerText.includes(home) ||
+              (headerText.toLowerCase().includes("last matches") &&
+                headerText.includes(home))
+            ) {
+              sectionType = "HOME_FORM";
               label = `${home} recent form`;
-            } else if (headerText.includes(away) || 
-                       headerText.toLowerCase().includes('last matches') && 
-                       headerText.includes(away)) {
-              sectionType = 'AWAY_FORM';
+            } else if (
+              headerText.includes(away) ||
+              (headerText.toLowerCase().includes("last matches") &&
+                headerText.includes(away))
+            ) {
+              sectionType = "AWAY_FORM";
               label = `${away} recent form`;
             }
 
@@ -782,7 +850,7 @@ class ScraperService {
         if (!sectionInfo || !sectionInfo.sectionType) {
           emitLog(
             this.io,
-            `⚠️ Could not identify section ${i + 1} (header: "${sectionInfo?.headerText || 'unknown'}") - skipping`,
+            `⚠️ Could not identify section ${i + 1} (header: "${sectionInfo?.headerText || "unknown"}") - skipping`,
             "warning",
           );
           continue;

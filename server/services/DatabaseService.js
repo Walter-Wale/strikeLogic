@@ -68,6 +68,7 @@ class DatabaseService {
           leagueName: data.league_name,
           isSynced: data.is_synced,
           h2hScraped: data.is_synced, // Alias for frontend compatibility
+          flashscoreUrl: data.flashscore_url || null,
           status: "scheduled", // Default status for scraped matches
         };
       });
@@ -101,6 +102,7 @@ class DatabaseService {
           away_team_id: awayTeam.id,
           league_name: matchData.leagueName || matchData.league_name,
           is_synced: matchData.isSynced || false,
+          flashscore_url: matchData.matchUrl || null,
         };
 
         const [match, created] = await db.Match.findOrCreate({
@@ -135,6 +137,7 @@ class DatabaseService {
           leagueName: data.league_name,
           isSynced: data.is_synced,
           h2hScraped: data.is_synced,
+          flashscoreUrl: data.flashscore_url || null,
           status: "scheduled", // Default status for scraped matches
         });
       }
@@ -320,6 +323,7 @@ class DatabaseService {
         leagueName: data.league_name,
         isSynced: data.is_synced,
         h2hScraped: data.is_synced,
+        flashscoreUrl: data.flashscore_url || null,
         status: "scheduled", // Default status for scraped matches
       };
     } catch (error) {

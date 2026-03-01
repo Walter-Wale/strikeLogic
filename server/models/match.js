@@ -54,6 +54,13 @@ module.exports = (sequelize, DataTypes) => {
         field: "is_synced",
         comment: "Flag indicating if H2H data has been scraped for this match",
       },
+      flashscore_url: {
+        type: DataTypes.STRING(500),
+        allowNull: true,
+        field: "flashscore_url",
+        comment:
+          "Full FlashScore match URL path (e.g., /match/football/team1-Id/team2-Id/)",
+      },
     },
     {
       tableName: "matches",
