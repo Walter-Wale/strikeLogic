@@ -35,9 +35,18 @@ function App() {
   // State management
   const [selectedDate, setSelectedDate] = useState(dayjs());
   const [selectedLeagues, setSelectedLeagues] = useState([]);
-  const [matches, setMatches] = useState([]);
+  const [allMatches, setAllMatches] = useState([]); // full unfiltered list for the date
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  // Derive filtered matches client-side so league selector always sees all leagues
+  const matches = React.useMemo(() => {
+    if (selectedLeagues.length === 0) return allMatches;
+    return allMatches.filter((m) => {
+      const league = m.leagueName || m.league_name || m.league?.name || "";
+      return selectedLeagues.includes(league);
+    });
+  }, [allMatches, selectedLeagues]);
 
   // H2H Modal state
   const [h2hModalOpen, setH2hModalOpen] = useState(false);
@@ -54,7 +63,7 @@ function App() {
 
     // Real-time H2H sync: mark individual matches as synced when server notifies us
     const unsubscribeH2H = subscribeToH2HSynced(({ matchId }) => {
-      setMatches((prev) =>
+      setAllMatches((prev) =>
         prev.map((m) =>
           m.id === matchId ? { ...m, h2hScraped: true, isSynced: true } : m,
         ),
@@ -67,18 +76,16 @@ function App() {
     };
   }, []);
 
-  // AUTOMATED WORKFLOW: Automatically fetch matches when date or leagues change
+  // AUTOMATED WORKFLOW: Fetch all matches when date changes (no league filter — filtering is client-side)
   useEffect(() => {
-    // Auto-trigger fetching when date or leagues change
-    // Small delay to debounce rapid changes
     const timer = setTimeout(() => {
       if (selectedDate) {
         handleFetchMatches();
       }
-    }, 500); // 500ms debounce
+    }, 500);
 
     return () => clearTimeout(timer);
-  }, [selectedDate, selectedLeagues]); // Triggers on date or league change
+  }, [selectedDate]); // Only re-fetch from server when date changes
 
   // AUTOMATED WORKFLOW: Trigger H2H scraping when leagues are selected
   useEffect(() => {
@@ -110,21 +117,21 @@ function App() {
   // REMOVED: Auto-refresh was causing excessive database queries
   // User can manually refresh by changing date or clicking "Scrape Matches"
 
-  // Handler: Fetch matches
+  // Handler: Fetch all matches for the date (no league filter — filtering is applied client-side)
   const handleFetchMatches = async () => {
     setLoading(true);
     setError(null);
-    setMatches([]);
+    setAllMatches([]);
 
     try {
       // Format date to YYYY-MM-DD
       const formattedDate = selectedDate.format("YYYY-MM-DD");
 
-      // Fetch matches from API
-      const response = await fetchMatchesByDate(formattedDate, selectedLeagues);
+      // Always fetch ALL matches for the date; league filtering is done client-side
+      const response = await fetchMatchesByDate(formattedDate, []);
 
       if (response.success) {
-        setMatches(response.data || []);
+        setAllMatches(response.data || []);
       } else {
         setError(response.error || "Failed to fetch matches");
       }
@@ -207,7 +214,7 @@ function App() {
               <LeagueSelector
                 value={selectedLeagues}
                 onChange={setSelectedLeagues}
-                matches={matches}
+                matches={allMatches}
               />
             </Grid>
           </Grid>
