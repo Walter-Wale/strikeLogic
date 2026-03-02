@@ -863,6 +863,35 @@ class ScraperService {
 
         const { sectionType, label } = sectionInfo;
 
+        // Click "Show more" button (verified selector: button.wclButtonLink--h2h)
+        // Uses Puppeteer's element handle so it auto-scrolls into view before clicking
+        try {
+          const showMoreBtn = await page.evaluateHandle(
+            (containerSel, index) => {
+              const sections = document.querySelectorAll(containerSel);
+              if (index >= sections.length) return null;
+              const section = sections[index];
+              return section.querySelector("button.wclButtonLink--h2h") || null;
+            },
+            selectors.H2H_SELECTORS.CONTAINERS,
+            i,
+          );
+
+          const btnElement = showMoreBtn.asElement();
+          if (btnElement) {
+            // Scroll into view so Puppeteer's click() lands correctly
+            await btnElement.evaluate((el) =>
+              el.scrollIntoView({ block: "center" }),
+            );
+            await new Promise((resolve) => setTimeout(resolve, 300));
+            await btnElement.click();
+            // Wait for new rows to render
+            await new Promise((resolve) => setTimeout(resolve, 1200));
+          }
+        } catch (showMoreError) {
+          // Non-fatal – section may not have a "show more" button
+        }
+
         emitLog(this.io, `📊 Extracting ${label}...`, "info");
 
         // Extract data from this section
@@ -927,7 +956,7 @@ class ScraperService {
               }
             });
 
-            return extracted.slice(0, 5); // Limit to 5 matches per section
+            return extracted.slice(0, 10); // Limit to 10 matches per section
           },
           selectors.H2H_SELECTORS.CONTAINERS,
           selectors.H2H_SELECTORS.ROW,
@@ -997,7 +1026,7 @@ class ScraperService {
     containerSelector,
     sectionType,
     parentMatchId,
-    maxRows = 5,
+    maxRows = 10,
   ) {
     try {
       // Check if container exists
@@ -1072,7 +1101,7 @@ class ScraperService {
             }
           });
 
-          return extracted.slice(0, 5); // Limit to 5 matches
+          return extracted.slice(0, 10); // Limit to 10 matches
         },
         containerSelector,
         selectors.H2H_MATCH_ROW_SELECTOR,

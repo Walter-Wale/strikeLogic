@@ -150,9 +150,9 @@ module.exports = {
 
     /**
      * "Show more" button to expand matches
-     * Example: <a class="h2h__showMore">Show more matches</a>
+     * Verified 2026-03-02: <button class="wclButtonLink wclButtonLink--h2h ...">Show more matches</button>
      */
-    SHOW_MORE: '.h2h__showMore, .showMore, a[class*="showMore"]',
+    SHOW_MORE: "button.wclButtonLink--h2h",
   },
 
   // ============================================
