@@ -635,6 +635,11 @@ class ScraperService {
       // Mark match as scraped
       await this.dbService.markH2HScraped(matchId);
 
+      // Notify clients that this match's H2H is now synced
+      if (this.io) {
+        this.io.emit("h2h-synced", { matchId });
+      }
+
       emitLog(
         this.io,
         `✓ H2H complete: ${match.homeTeam} vs ${match.awayTeam}`,

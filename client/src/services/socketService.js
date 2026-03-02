@@ -59,6 +59,26 @@ export function subscribeToLogs(callback) {
 }
 
 /**
+ * Subscribe to H2H synced events
+ * Fires when a match's H2H data has been scraped and saved to MySQL
+ * @param {Function} callback - Called with { matchId: number }
+ * @returns {Function} Unsubscribe function
+ */
+export function subscribeToH2HSynced(callback) {
+  const socketInstance = initializeSocket();
+
+  const handleSynced = (data) => {
+    callback(data);
+  };
+
+  socketInstance.on("h2h-synced", handleSynced);
+
+  return () => {
+    socketInstance.off("h2h-synced", handleSynced);
+  };
+}
+
+/**
  * Unsubscribe from all log listeners
  */
 export function unsubscribeFromLogs() {

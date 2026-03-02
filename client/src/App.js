@@ -25,7 +25,11 @@ import H2HModal from "./components/H2HModal";
 
 // Import services
 import { fetchMatchesByDate, scrapeH2HByLeagues } from "./services/apiService";
-import { initializeSocket, disconnect } from "./services/socketService";
+import {
+  initializeSocket,
+  disconnect,
+  subscribeToH2HSynced,
+} from "./services/socketService";
 
 function App() {
   // State management
@@ -48,7 +52,17 @@ function App() {
   useEffect(() => {
     initializeSocket();
 
+    // Real-time H2H sync: mark individual matches as synced when server notifies us
+    const unsubscribeH2H = subscribeToH2HSynced(({ matchId }) => {
+      setMatches((prev) =>
+        prev.map((m) =>
+          m.id === matchId ? { ...m, h2hScraped: true, isSynced: true } : m,
+        ),
+      );
+    });
+
     return () => {
+      unsubscribeH2H();
       disconnect();
     };
   }, []);
