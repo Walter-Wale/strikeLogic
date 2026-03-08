@@ -150,8 +150,8 @@ class ScraperService {
 
       // First, visit the homepage to establish a session (more human-like)
       await page.goto("https://www.flashscore.com/", {
-        waitUntil: "networkidle2",
-        timeout: 30000,
+        waitUntil: "domcontentloaded",
+        timeout: 60000,
       });
 
       await delay(2000); // Wait like a human would
@@ -174,7 +174,7 @@ class ScraperService {
 
       await page.goto(url, {
         waitUntil: "domcontentloaded",
-        timeout: 30000,
+        timeout: 60000,
       });
 
       await delay(3000); // Give time for JS to load matches
@@ -508,7 +508,7 @@ class ScraperService {
       }
 
       emitLog(this.io, `🔗 H2H URL: ${urlBase}`, "info");
-      await page.goto(urlBase, { waitUntil: "networkidle2", timeout: 60000 });
+      await page.goto(urlBase, { waitUntil: "domcontentloaded", timeout: 60000 });
 
       // Wait for at least one H2H section to appear
       await page

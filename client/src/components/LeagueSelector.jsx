@@ -56,8 +56,8 @@ const LeagueSelector = ({ value, onChange, matches }) => {
         onChange(newValue);
       }}
       getOptionLabel={(option) => option}
-      renderOption={(props, option, { selected }) => (
-        <li {...props}>
+      renderOption={({ key, ...props }, option, { selected }) => (
+        <li key={key} {...props}>
           <Checkbox
             icon={icon}
             checkedIcon={checkedIcon}

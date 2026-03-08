@@ -7,6 +7,9 @@ const http = require("http");
 const app = require("./app");
 const db = require("./models");
 const { initializeSocket } = require("./config/socketConfig");
+const DatabaseService = require("./services/DatabaseService");
+
+const databaseService = new DatabaseService();
 
 const PORT = process.env.PORT || 5000;
 
@@ -23,9 +26,19 @@ app.set("io", io);
 // alter:true adds new columns (like flashscore_url) without dropping existing data
 db.sequelize
   .sync({ alter: true })
-  .then(() => {
+  .then(async () => {
     console.log("✓ Database synced successfully");
     console.log("✓ Tables: leagues, matches, h2h_history");
+
+    // Remove data for past dates so the DB is always clean on startup
+    try {
+      await databaseService.cleanupStaleData();
+    } catch (cleanupError) {
+      console.error(
+        "✗ Stale data cleanup failed (server will still start):",
+        cleanupError.message,
+      );
+    }
 
     // Start server on all interfaces
     server.listen(PORT, "0.0.0.0", () => {

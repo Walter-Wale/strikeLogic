@@ -215,6 +215,13 @@ class DatabaseService {
    */
   async saveH2HData(h2hArray) {
     try {
+      // Delete any existing rows for this parent match before inserting
+      // so re-scrapes produce a clean set rather than appending duplicates
+      if (h2hArray.length > 0) {
+        const parentMatchId = h2hArray[0].parentMatchId;
+        await db.H2HHistory.destroy({ where: { parent_match_id: parentMatchId } });
+      }
+
       const recordsToInsert = [];
 
       for (const h2hData of h2hArray) {
@@ -375,6 +382,75 @@ class DatabaseService {
       };
     } catch (error) {
       console.error("Error fetching match by FlashScore ID:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete all data tied to past dates and orphaned teams.
+   * Deletion order respects FK constraints:
+   *   1. h2h_history (references matches)
+   *   2. matches
+   *   3. teams orphaned after the above deletions
+   * @returns {Promise<{h2hDeleted: number, matchesDeleted: number, teamsDeleted: number}>}
+   */
+  async cleanupStaleData() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    try {
+      // Step 1: find IDs of all past matches
+      const staleMatches = await db.Match.findAll({
+        attributes: ["id"],
+        where: { match_date: { [Op.lt]: today } },
+      });
+
+      const staleMatchIds = staleMatches.map((m) => m.id);
+
+      let h2hDeleted = 0;
+      let matchesDeleted = 0;
+
+      if (staleMatchIds.length > 0) {
+        // Step 2: delete h2h_history rows that belong to those matches
+        h2hDeleted = await db.H2HHistory.destroy({
+          where: { parent_match_id: { [Op.in]: staleMatchIds } },
+        });
+
+        // Step 3: delete the stale matches themselves
+        matchesDeleted = await db.Match.destroy({
+          where: { id: { [Op.in]: staleMatchIds } },
+        });
+      }
+
+      // Step 4: delete teams no longer referenced in matches or h2h_history
+      const referencedTeamIds = await db.sequelize.query(
+        `SELECT DISTINCT id FROM teams WHERE
+           id IN (SELECT home_team_id FROM matches WHERE home_team_id IS NOT NULL)
+        OR id IN (SELECT away_team_id FROM matches WHERE away_team_id IS NOT NULL)
+        OR id IN (SELECT home_team_id FROM h2h_history WHERE home_team_id IS NOT NULL)
+        OR id IN (SELECT away_team_id FROM h2h_history WHERE away_team_id IS NOT NULL)`,
+        { type: db.sequelize.QueryTypes.SELECT },
+      );
+
+      const referencedIds = referencedTeamIds.map((r) => r.id);
+
+      let teamsDeleted = 0;
+      if (referencedIds.length > 0) {
+        teamsDeleted = await db.Team.destroy({
+          where: { id: { [Op.notIn]: referencedIds } },
+        });
+      } else {
+        // No references at all — delete every team (plain DELETE, TRUNCATE is blocked by FK constraints)
+        teamsDeleted = await db.Team.destroy({ where: {} });
+      }
+
+      console.log(
+        `✓ Stale data cleanup complete — h2h_history: ${h2hDeleted} rows, matches: ${matchesDeleted} rows, teams: ${teamsDeleted} rows deleted`,
+      );
+
+      return { h2hDeleted, matchesDeleted, teamsDeleted };
+    } catch (error) {
+      console.error("Error during stale data cleanup:", error);
       throw error;
     }
   }

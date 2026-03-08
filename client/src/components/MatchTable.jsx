@@ -136,8 +136,7 @@ const MatchTable = ({ matches, loading, onAnalyzeClick }) => {
       <DataGrid
         rows={matches}
         columns={columns}
-        pageSize={10}
-        rowsPerPageOptions={[10, 25, 50]}
+        pageSizeOptions={[10, 25, 50]}
         loading={loading}
         disableSelectionOnClick
         autoHeight

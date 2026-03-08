@@ -60,6 +60,19 @@ module.exports = (sequelize, DataTypes) => {
       tableName: "h2h_history",
       timestamps: false,
       underscored: true,
+      indexes: [
+        {
+          unique: true,
+          fields: [
+            "parent_match_id",
+            "section_type",
+            "match_date",
+            "home_team_id",
+            "away_team_id",
+          ],
+          name: "uq_h2h_record",
+        },
+      ],
     },
   );
 
