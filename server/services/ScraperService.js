@@ -508,7 +508,10 @@ class ScraperService {
       }
 
       emitLog(this.io, `🔗 H2H URL: ${urlBase}`, "info");
-      await page.goto(urlBase, { waitUntil: "domcontentloaded", timeout: 60000 });
+      await page.goto(urlBase, {
+        waitUntil: "domcontentloaded",
+        timeout: 60000,
+      });
 
       // Wait for at least one H2H section to appear
       await page

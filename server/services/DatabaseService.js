@@ -219,7 +219,9 @@ class DatabaseService {
       // so re-scrapes produce a clean set rather than appending duplicates
       if (h2hArray.length > 0) {
         const parentMatchId = h2hArray[0].parentMatchId;
-        await db.H2HHistory.destroy({ where: { parent_match_id: parentMatchId } });
+        await db.H2HHistory.destroy({
+          where: { parent_match_id: parentMatchId },
+        });
       }
 
       const recordsToInsert = [];
