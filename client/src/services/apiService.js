@@ -112,6 +112,34 @@ export async function scrapeH2HByLeagues(date, leagues) {
   }
 }
 
+/**
+ * Fetch predictions for synced matches on a given date and league set
+ * @param {string} date - Date in YYYY-MM-DD format
+ * @param {Array<string>} leagues - Array of league names to filter by
+ * @returns {Promise<Object>} Response with predictions array
+ */
+export async function fetchPredictions(date, leagues = []) {
+  try {
+    const params = { date };
+
+    if (leagues && leagues.length > 0) {
+      params.leagues = leagues;
+    }
+
+    const response = await apiClient.get("/predictions", { params });
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching predictions:", error);
+
+    const errorMessage =
+      error.response?.data?.error ||
+      error.response?.data?.message ||
+      "Failed to fetch predictions.";
+
+    throw new Error(errorMessage);
+  }
+}
+
 // Add request interceptor for logging (optional)
 apiClient.interceptors.request.use(
   (config) => {

@@ -16,10 +16,12 @@ app.use(cors());
 // Import routes
 const matchesRoutes = require("./routes/matches");
 const h2hRoutes = require("./routes/h2h");
+const predictionsRoutes = require("./routes/predictions");
 
 // Mount routes
 app.use(matchesRoutes);
 app.use(h2hRoutes);
+app.use(predictionsRoutes);
 
 // Health check endpoint
 app.get("/", (req, res) => {

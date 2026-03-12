@@ -12,6 +12,8 @@ import {
   Paper,
   Alert,
   CircularProgress,
+  Button,
+  Tooltip,
 } from "@mui/material";
 import SportsSoccerIcon from "@mui/icons-material/SportsSoccer";
 import dayjs from "dayjs";
@@ -22,13 +24,19 @@ import LeagueSelector from "./components/LeagueSelector";
 import MatchTable from "./components/MatchTable";
 import LogConsole from "./components/LogConsole";
 import H2HModal from "./components/H2HModal";
+import PredictionTable from "./components/PredictionTable";
 
 // Import services
-import { fetchMatchesByDate, scrapeH2HByLeagues } from "./services/apiService";
+import {
+  fetchMatchesByDate,
+  scrapeH2HByLeagues,
+  fetchPredictions,
+} from "./services/apiService";
 import {
   initializeSocket,
   disconnect,
   subscribeToH2HSynced,
+  subscribeToLogs,
 } from "./services/socketService";
 
 function App() {
@@ -57,6 +65,16 @@ function App() {
     awayTeam: "",
   });
 
+  // Prediction state
+  const [chainCompleteDetected, setChainCompleteDetected] = useState(false);
+  const [predictions, setPredictions] = useState([]);
+  const [predictionsLoading, setPredictionsLoading] = useState(false);
+
+  // Button is enabled when: the chain-complete log fired, OR all visible synced matches exist
+  const allMatchesSynced =
+    matches.length > 0 && matches.every((m) => m.isSynced || m.h2hScraped);
+  const h2hChainComplete = chainCompleteDetected || allMatchesSynced;
+
   // Initialize socket connection on mount
   useEffect(() => {
     initializeSocket();
@@ -70,11 +88,25 @@ function App() {
       );
     });
 
+    // Detect H2H chain completion: enable the Run Predictions button
+    const unsubscribeLogs = subscribeToLogs(({ message }) => {
+      if (message && message.includes("Automated H2H chain complete")) {
+        setChainCompleteDetected(true);
+      }
+    });
+
     return () => {
       unsubscribeH2H();
+      unsubscribeLogs();
       disconnect();
     };
   }, []);
+
+  // Reset predictions and chain detection flag when the user picks a new date or changes leagues
+  useEffect(() => {
+    setChainCompleteDetected(false);
+    setPredictions([]);
+  }, [selectedDate, selectedLeagues]);
 
   // AUTOMATED WORKFLOW: Fetch all matches when date changes (no league filter — filtering is client-side)
   useEffect(() => {
@@ -165,6 +197,22 @@ function App() {
         awayTeam: "",
       });
     }, 300);
+  };
+
+  // Handler: Run predictions
+  const handleRunPredictions = async () => {
+    setPredictionsLoading(true);
+    try {
+      const formattedDate = selectedDate.format("YYYY-MM-DD");
+      const response = await fetchPredictions(formattedDate, selectedLeagues);
+      if (response.success) {
+        setPredictions(response.data || []);
+      }
+    } catch (err) {
+      console.error("Error fetching predictions:", err);
+    } finally {
+      setPredictionsLoading(false);
+    }
   };
 
   return (
@@ -260,6 +308,41 @@ function App() {
             onAnalyzeClick={handleAnalyzeClick}
           />
         </Paper>
+
+        {/* Run Predictions Button */}
+        <Box sx={{ mt: 3, display: "flex", justifyContent: "flex-end" }}>
+          <Tooltip
+            title={
+              !h2hChainComplete
+                ? "Available after the automated H2H chain completes"
+                : ""
+            }
+            arrow
+          >
+            <span>
+              <Button
+                variant="contained"
+                size="large"
+                disabled={!h2hChainComplete || predictionsLoading}
+                onClick={handleRunPredictions}
+                startIcon={
+                  predictionsLoading ? (
+                    <CircularProgress size={18} color="inherit" />
+                  ) : null
+                }
+                sx={{ px: 4 }}
+              >
+                {predictionsLoading ? "Running..." : "Run Predictions"}
+              </Button>
+            </span>
+          </Tooltip>
+        </Box>
+
+        {/* Prediction Results */}
+        <PredictionTable
+          predictions={predictions}
+          loading={predictionsLoading}
+        />
 
         {/* H2H Analysis Modal */}
         <H2HModal
