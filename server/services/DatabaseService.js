@@ -69,6 +69,9 @@ class DatabaseService {
           isSynced: data.is_synced,
           h2hScraped: data.is_synced, // Alias for frontend compatibility
           flashscoreUrl: data.flashscore_url || null,
+          oddsHome: data.odds_home != null ? parseFloat(data.odds_home) : null,
+          oddsDraw: data.odds_draw != null ? parseFloat(data.odds_draw) : null,
+          oddsAway: data.odds_away != null ? parseFloat(data.odds_away) : null,
           status: "scheduled", // Default status for scraped matches
         };
       });
@@ -103,6 +106,9 @@ class DatabaseService {
           league_name: matchData.leagueName || matchData.league_name,
           is_synced: matchData.isSynced || false,
           flashscore_url: matchData.matchUrl || null,
+          odds_home: matchData.oddsHome ?? null,
+          odds_draw: matchData.oddsDraw ?? null,
+          odds_away: matchData.oddsAway ?? null,
         };
 
         const [match, created] = await db.Match.findOrCreate({
@@ -138,6 +144,9 @@ class DatabaseService {
           isSynced: data.is_synced,
           h2hScraped: data.is_synced,
           flashscoreUrl: data.flashscore_url || null,
+          oddsHome: data.odds_home != null ? parseFloat(data.odds_home) : null,
+          oddsDraw: data.odds_draw != null ? parseFloat(data.odds_draw) : null,
+          oddsAway: data.odds_away != null ? parseFloat(data.odds_away) : null,
           status: "scheduled", // Default status for scraped matches
         });
       }
@@ -333,6 +342,9 @@ class DatabaseService {
         isSynced: data.is_synced,
         h2hScraped: data.is_synced,
         flashscoreUrl: data.flashscore_url || null,
+        oddsHome: data.odds_home != null ? parseFloat(data.odds_home) : null,
+        oddsDraw: data.odds_draw != null ? parseFloat(data.odds_draw) : null,
+        oddsAway: data.odds_away != null ? parseFloat(data.odds_away) : null,
         status: "scheduled", // Default status for scraped matches
       };
     } catch (error) {

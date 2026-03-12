@@ -168,4 +168,59 @@ module.exports = {
    * Selector to wait for on H2H page
    */
   WAIT_FOR_H2H: ".h2h__section, .h2h",
+
+  // ============================================
+  // ODDS TAB SELECTORS (match list odds view)
+  // ============================================
+
+  /**
+   * ODDS_SELECTORS - FlashScore Odds tab structure
+   *
+   * HOW TO VERIFY / UPDATE THESE SELECTORS:
+   * 1. Run the app — it will click the ODDS tab and save a debug HTML snapshot
+   *    to server/logs/errors/odds_tab_<date>.html
+   * 2. Open that file in a browser, use DevTools to inspect the odds cells
+   * 3. Update the selectors below to match the live DOM
+   *
+   * Common alternatives to try for the tab button:
+   *   button[data-testid*="odds"], a[href*="odds"], .filter__btn, .tabs__tab
+   *
+   * Common alternatives for per-row odds cells:
+   *   .oddsCell__odd, .odds__odd, span[class*="oddsValue"], .event__odds--home
+   */
+  ODDS_SELECTORS: {
+    /**
+     * The "ODDS" tab/button on the FlashScore football list page
+     * Clicking it switches the match list to display 1X2 odds
+     * Verified 2026-03-12: <div class="filters__tab" data-analytics-alias="odds">
+     */
+    ODDS_TAB: '[data-analytics-alias="odds"]',
+
+    /**
+     * Home-win odds container within a match row
+     * Verified 2026-03-12:
+     *   <div class="odds__odd event__odd--odd1"><svg>...</svg><span class="up">3.15</span></div>
+     */
+    ODDS_HOME: ".event__odd--odd1",
+
+    /**
+     * Draw odds container within a match row
+     * Verified 2026-03-12:
+     *   <div class="odds__odd event__odd--odd2"><svg>...</svg><span class="down">3.05</span></div>
+     */
+    ODDS_DRAW: ".event__odd--odd2",
+
+    /**
+     * Away-win odds container within a match row
+     * Verified 2026-03-12:
+     *   <div class="odds__odd event__odd--odd3"><svg>...</svg><span>2.47</span></div>
+     */
+    ODDS_AWAY: ".event__odd--odd3",
+
+    /**
+     * All three odds containers in a single query (ordered: odd1=home, odd2=draw, odd3=away)
+     * The numeric value is in the <span> child of each container
+     */
+    ODDS_CELLS: ".odds__odd",
+  },
 };

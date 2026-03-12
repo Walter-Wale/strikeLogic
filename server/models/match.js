@@ -61,6 +61,24 @@ module.exports = (sequelize, DataTypes) => {
         comment:
           "Full FlashScore match URL path (e.g., /match/football/team1-Id/team2-Id/)",
       },
+      odds_home: {
+        type: DataTypes.DECIMAL(5, 2),
+        allowNull: true,
+        field: "odds_home",
+        comment: "1X2 odds for home win (e.g., 1.85)",
+      },
+      odds_draw: {
+        type: DataTypes.DECIMAL(5, 2),
+        allowNull: true,
+        field: "odds_draw",
+        comment: "1X2 odds for draw (e.g., 3.50)",
+      },
+      odds_away: {
+        type: DataTypes.DECIMAL(5, 2),
+        allowNull: true,
+        field: "odds_away",
+        comment: "1X2 odds for away win (e.g., 4.20)",
+      },
     },
     {
       tableName: "matches",

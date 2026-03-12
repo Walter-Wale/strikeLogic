@@ -47,6 +47,36 @@ const MatchTable = ({ matches, loading, onAnalyzeClick }) => {
       },
     },
     {
+      field: "oddsHome",
+      headerName: "Home W",
+      width: 80,
+      sortable: true,
+      align: "center",
+      headerAlign: "center",
+      valueFormatter: (params) =>
+        params.value != null ? params.value.toFixed(2) : "—",
+    },
+    {
+      field: "oddsDraw",
+      headerName: "Draw",
+      width: 80,
+      sortable: true,
+      align: "center",
+      headerAlign: "center",
+      valueFormatter: (params) =>
+        params.value != null ? params.value.toFixed(2) : "—",
+    },
+    {
+      field: "oddsAway",
+      headerName: "Away W",
+      width: 80,
+      sortable: true,
+      align: "center",
+      headerAlign: "center",
+      valueFormatter: (params) =>
+        params.value != null ? params.value.toFixed(2) : "—",
+    },
+    {
       field: "h2hStatus",
       headerName: "H2H Status",
       width: 130,
