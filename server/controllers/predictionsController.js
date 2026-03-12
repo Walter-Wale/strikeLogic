@@ -115,6 +115,9 @@ async function getPredictions(req, res) {
         awayTeam: match.awayTeam,
         leagueName: match.leagueName,
         predictedWinner: homeTeam,
+        oddsHome: match.oddsHome ?? null,
+        oddsDraw: match.oddsDraw ?? null,
+        oddsAway: match.oddsAway ?? null,
       });
     }
 

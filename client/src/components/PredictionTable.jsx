@@ -70,6 +70,33 @@ const columns = [
     ),
     sortable: false,
   },
+  {
+    field: "oddsHome",
+    headerName: "Home W",
+    width: 85,
+    align: "center",
+    headerAlign: "center",
+    valueFormatter: (params) =>
+      params.value != null ? Number(params.value).toFixed(2) : "—",
+  },
+  {
+    field: "oddsDraw",
+    headerName: "Draw",
+    width: 85,
+    align: "center",
+    headerAlign: "center",
+    valueFormatter: (params) =>
+      params.value != null ? Number(params.value).toFixed(2) : "—",
+  },
+  {
+    field: "oddsAway",
+    headerName: "Away W",
+    width: 85,
+    align: "center",
+    headerAlign: "center",
+    valueFormatter: (params) =>
+      params.value != null ? Number(params.value).toFixed(2) : "—",
+  },
 ];
 
 export default function PredictionTable({ predictions = [], loading = false }) {
