@@ -88,8 +88,8 @@ async function getPredictions(req, res) {
         teamLost(r, homeTeam),
       ).length;
 
-      // Must have >= 4 wins and <= 3 losses to proceed
-      if (formWins < 4 || formLosses > 3) continue;
+      // Must have >= 4 wins and <= 4 losses to proceed
+      if (formWins < 4 || formLosses > 4) continue;
 
       // --- Gate 2: Head-to-Head record ---
       const h2hRecords = DIRECT_H2H.filter(

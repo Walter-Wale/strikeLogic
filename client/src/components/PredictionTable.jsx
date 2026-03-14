@@ -7,10 +7,20 @@
  *   Gate 2 — DIRECT_H2H: <= 3 total losses AND >= 2 home wins
  */
 
-import React from "react";
-import { Box, Typography, Chip, CircularProgress, Paper } from "@mui/material";
+import React, { useState } from "react";
+import {
+  Box,
+  Typography,
+  Chip,
+  CircularProgress,
+  Paper,
+  Tab,
+  Tabs,
+} from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
+import ConfirmationNumberIcon from "@mui/icons-material/ConfirmationNumber";
+import TicketsTab from "./TicketsTab";
 
 /**
  * Format a date string (YYYY-MM-DD) to DD/MM/YYYY for display.
@@ -100,11 +110,14 @@ const columns = [
 ];
 
 export default function PredictionTable({ predictions = [], loading = false }) {
+  const [activeTab, setActiveTab] = useState(0);
+
   // Assign stable row IDs from matchId
   const rows = predictions.map((p) => ({ ...p, id: p.matchId }));
 
   return (
     <Paper elevation={2} sx={{ p: 3, mt: 3 }}>
+      {/* Header */}
       <Box
         sx={{
           display: "flex",
@@ -129,42 +142,65 @@ export default function PredictionTable({ predictions = [], loading = false }) {
         {loading && <CircularProgress size={20} sx={{ ml: 1 }} />}
       </Box>
 
-      {!loading && predictions.length === 0 ? (
-        <Typography
-          variant="body2"
-          color="text.secondary"
-          sx={{ py: 4, textAlign: "center" }}
-        >
-          No strong home-team predictions found for the selected matches.
-        </Typography>
-      ) : (
-        <Box sx={{ height: 400 }}>
-          <DataGrid
-            rows={rows}
-            columns={columns}
-            loading={loading}
-            pageSizeOptions={[10, 25, 50]}
-            initialState={{
-              pagination: { paginationModel: { pageSize: 10 } },
-            }}
-            disableRowSelectionOnClick
-            autoHeight
-            sx={{
-              "& .MuiDataGrid-columnHeader": {
-                backgroundColor: "primary.main",
-                color: "white",
-                fontWeight: 700,
-              },
-              "& .MuiDataGrid-columnHeader .MuiDataGrid-sortIcon": {
-                color: "white",
-              },
-              "& .MuiDataGrid-row:hover": {
-                backgroundColor: "action.hover",
-              },
-            }}
-          />
-        </Box>
-      )}
+      {/* Tabs */}
+      <Tabs
+        value={activeTab}
+        onChange={(_, v) => setActiveTab(v)}
+        sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}
+      >
+        <Tab
+          icon={<EmojiEventsIcon fontSize="small" />}
+          iconPosition="start"
+          label="Predictions"
+        />
+        <Tab
+          icon={<ConfirmationNumberIcon fontSize="small" />}
+          iconPosition="start"
+          label="Tickets"
+        />
+      </Tabs>
+
+      {/* Predictions tab panel */}
+      {activeTab === 0 &&
+        (!loading && predictions.length === 0 ? (
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{ py: 4, textAlign: "center" }}
+          >
+            No strong home-team predictions found for the selected matches.
+          </Typography>
+        ) : (
+          <Box>
+            <DataGrid
+              rows={rows}
+              columns={columns}
+              loading={loading}
+              pageSizeOptions={[10, 25, 50]}
+              initialState={{
+                pagination: { paginationModel: { pageSize: 10 } },
+              }}
+              disableRowSelectionOnClick
+              autoHeight
+              sx={{
+                "& .MuiDataGrid-columnHeader": {
+                  backgroundColor: "primary.main",
+                  color: "white",
+                  fontWeight: 700,
+                },
+                "& .MuiDataGrid-columnHeader .MuiDataGrid-sortIcon": {
+                  color: "white",
+                },
+                "& .MuiDataGrid-row:hover": {
+                  backgroundColor: "action.hover",
+                },
+              }}
+            />
+          </Box>
+        ))}
+
+      {/* Tickets tab panel */}
+      {activeTab === 1 && <TicketsTab predictions={predictions} />}
     </Paper>
   );
 }
