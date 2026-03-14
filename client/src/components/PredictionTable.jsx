@@ -160,9 +160,9 @@ export default function PredictionTable({ predictions = [], loading = false }) {
         />
       </Tabs>
 
-      {/* Predictions tab panel */}
-      {activeTab === 0 &&
-        (!loading && predictions.length === 0 ? (
+      {/* Predictions tab panel — always mounted, hidden when inactive */}
+      <Box sx={{ display: activeTab === 0 ? "block" : "none" }}>
+        {!loading && predictions.length === 0 ? (
           <Typography
             variant="body2"
             color="text.secondary"
@@ -171,36 +171,37 @@ export default function PredictionTable({ predictions = [], loading = false }) {
             No strong home-team predictions found for the selected matches.
           </Typography>
         ) : (
-          <Box>
-            <DataGrid
-              rows={rows}
-              columns={columns}
-              loading={loading}
-              pageSizeOptions={[10, 25, 50]}
-              initialState={{
-                pagination: { paginationModel: { pageSize: 10 } },
-              }}
-              disableRowSelectionOnClick
-              autoHeight
-              sx={{
-                "& .MuiDataGrid-columnHeader": {
-                  backgroundColor: "primary.main",
-                  color: "white",
-                  fontWeight: 700,
-                },
-                "& .MuiDataGrid-columnHeader .MuiDataGrid-sortIcon": {
-                  color: "white",
-                },
-                "& .MuiDataGrid-row:hover": {
-                  backgroundColor: "action.hover",
-                },
-              }}
-            />
-          </Box>
-        ))}
+          <DataGrid
+            rows={rows}
+            columns={columns}
+            loading={loading}
+            pageSizeOptions={[10, 25, 50]}
+            initialState={{
+              pagination: { paginationModel: { pageSize: 10 } },
+            }}
+            disableRowSelectionOnClick
+            autoHeight
+            sx={{
+              "& .MuiDataGrid-columnHeader": {
+                backgroundColor: "primary.main",
+                color: "white",
+                fontWeight: 700,
+              },
+              "& .MuiDataGrid-columnHeader .MuiDataGrid-sortIcon": {
+                color: "white",
+              },
+              "& .MuiDataGrid-row:hover": {
+                backgroundColor: "action.hover",
+              },
+            }}
+          />
+        )}
+      </Box>
 
-      {/* Tickets tab panel */}
-      {activeTab === 1 && <TicketsTab predictions={predictions} />}
+      {/* Tickets tab panel — always mounted, hidden when inactive */}
+      <Box sx={{ display: activeTab === 1 ? "block" : "none" }}>
+        <TicketsTab predictions={predictions} />
+      </Box>
     </Paper>
   );
 }
