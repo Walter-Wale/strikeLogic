@@ -17,11 +17,13 @@ app.use(cors());
 const matchesRoutes = require("./routes/matches");
 const h2hRoutes = require("./routes/h2h");
 const predictionsRoutes = require("./routes/predictions");
+const ticketsRoutes = require("./routes/tickets");
 
 // Mount routes
 app.use(matchesRoutes);
 app.use(h2hRoutes);
 app.use(predictionsRoutes);
+app.use(ticketsRoutes);
 
 // Health check endpoint
 app.get("/", (req, res) => {

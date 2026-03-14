@@ -20,7 +20,9 @@ import {
 import { DataGrid } from "@mui/x-data-grid";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import ConfirmationNumberIcon from "@mui/icons-material/ConfirmationNumber";
+import HistoryIcon from "@mui/icons-material/History";
 import TicketsTab from "./TicketsTab";
+import PastTicketsTab from "./PastTicketsTab";
 
 /**
  * Format a date string (YYYY-MM-DD) to DD/MM/YYYY for display.
@@ -109,7 +111,11 @@ const columns = [
   },
 ];
 
-export default function PredictionTable({ predictions = [], loading = false }) {
+export default function PredictionTable({
+  predictions = [],
+  loading = false,
+  matchDate,
+}) {
   const [activeTab, setActiveTab] = useState(0);
 
   // Assign stable row IDs from matchId
@@ -158,6 +164,11 @@ export default function PredictionTable({ predictions = [], loading = false }) {
           iconPosition="start"
           label="Tickets"
         />
+        <Tab
+          icon={<HistoryIcon fontSize="small" />}
+          iconPosition="start"
+          label="Past Tickets"
+        />
       </Tabs>
 
       {/* Predictions tab panel — always mounted, hidden when inactive */}
@@ -200,7 +211,12 @@ export default function PredictionTable({ predictions = [], loading = false }) {
 
       {/* Tickets tab panel — always mounted, hidden when inactive */}
       <Box sx={{ display: activeTab === 1 ? "block" : "none" }}>
-        <TicketsTab predictions={predictions} />
+        <TicketsTab predictions={predictions} matchDate={matchDate} />
+      </Box>
+
+      {/* Past Tickets tab panel — always mounted, hidden when inactive */}
+      <Box sx={{ display: activeTab === 2 ? "block" : "none" }}>
+        <PastTicketsTab />
       </Box>
     </Paper>
   );

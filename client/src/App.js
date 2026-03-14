@@ -342,6 +342,7 @@ function App() {
         <PredictionTable
           predictions={predictions}
           loading={predictionsLoading}
+          matchDate={selectedDate ? selectedDate.format("YYYY-MM-DD") : null}
         />
 
         {/* H2H Analysis Modal */}

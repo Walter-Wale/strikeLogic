@@ -1,22 +1,27 @@
 import React, { useState } from "react";
 import {
+  Alert,
   Box,
   Button,
   Card,
   CardContent,
   CardHeader,
+  CircularProgress,
   Divider,
   Grid,
   InputAdornment,
   List,
   ListItem,
   ListItemText,
+  Snackbar,
   TextField,
   Typography,
 } from "@mui/material";
 import ShuffleIcon from "@mui/icons-material/Shuffle";
 import FilterNoneIcon from "@mui/icons-material/FilterNone";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
+import SaveIcon from "@mui/icons-material/Save";
+import { saveTickets } from "../services/apiService";
 
 function shuffle(array) {
   const arr = [...array];
@@ -110,6 +115,22 @@ function TicketCard({ matches, idx }) {
                     >
                       {p.awayTeam}
                     </Typography>
+                    {/* League label pushed to the right */}
+                    {p.leagueName && (
+                      <Typography
+                        component="span"
+                        variant="caption"
+                        sx={{
+                          ml: "auto",
+                          pl: 1,
+                          color: "text.secondary",
+                          whiteSpace: "nowrap",
+                          flexShrink: 0,
+                        }}
+                      >
+                        {p.leagueName}
+                      </Typography>
+                    )}
                   </Box>
                 }
               />
@@ -121,11 +142,17 @@ function TicketCard({ matches, idx }) {
   );
 }
 
-export default function TicketsTab({ predictions = [] }) {
+export default function TicketsTab({ predictions = [], matchDate }) {
   const [teamsPerTicket, setTeamsPerTicket] = useState(5);
   const [maxAppearances, setMaxAppearances] = useState(1);
   const [multiCount, setMultiCount] = useState(10);
   const [tickets, setTickets] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: "",
+    severity: "success",
+  });
 
   const noData = predictions.length === 0;
   const perTicket = Math.max(1, teamsPerTicket);
@@ -144,6 +171,27 @@ export default function TicketsTab({ predictions = [] }) {
       pool = shuffle(pool);
     }
     setTickets(chunk(pool, perTicket));
+  }
+
+  async function handleSave() {
+    if (tickets.length === 0) return;
+    setSaving(true);
+    try {
+      await saveTickets(matchDate, teamsPerTicket, tickets);
+      setSnackbar({
+        open: true,
+        message: `${tickets.length} ticket${tickets.length !== 1 ? "s" : ""} saved successfully!`,
+        severity: "success",
+      });
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: err.message || "Failed to save tickets.",
+        severity: "error",
+      });
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -221,16 +269,49 @@ export default function TicketsTab({ predictions = [] }) {
         </Button>
 
         {tickets.length > 0 && (
-          <Typography
-            variant="body2"
-            color="text.secondary"
-            sx={{ ml: "auto" }}
-          >
-            {tickets.length} ticket{tickets.length !== 1 ? "s" : ""} &bull;{" "}
-            {predictions.length * Math.max(1, maxAppearances)} match slots
-          </Typography>
+          <>
+            <Button
+              variant="contained"
+              color="success"
+              startIcon={
+                saving ? (
+                  <CircularProgress size={16} color="inherit" />
+                ) : (
+                  <SaveIcon />
+                )
+              }
+              onClick={handleSave}
+              disabled={saving}
+              sx={{ height: 40 }}
+            >
+              Save Tickets
+            </Button>
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              sx={{ ml: "auto" }}
+            >
+              {tickets.length} ticket{tickets.length !== 1 ? "s" : ""} &bull;{" "}
+              {predictions.length * Math.max(1, maxAppearances)} match slots
+            </Typography>
+          </>
         )}
       </Box>
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert
+          onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
+          severity={snackbar.severity}
+          variant="filled"
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
 
       {noData && (
         <Typography

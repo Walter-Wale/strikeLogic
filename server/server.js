@@ -28,7 +28,9 @@ db.sequelize
   .sync({ alter: true })
   .then(async () => {
     console.log("✓ Database synced successfully");
-    console.log("✓ Tables: leagues, matches, h2h_history");
+    console.log(
+      "✓ Tables: matches, h2h_history, saved_ticket_batches, saved_ticket_items",
+    );
 
     // Remove data for past dates so the DB is always clean on startup
     try {

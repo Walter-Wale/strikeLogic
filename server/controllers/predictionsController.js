@@ -59,6 +59,11 @@ async function getPredictions(req, res) {
     // but handle both ?leagues[]=X and ?leagues=X for safety.
     let leagues = req.query.leagues || req.query["leagues[]"] || [];
     if (typeof leagues === "string") leagues = [leagues];
+    // Axios v1.x serialises arrays as leagues[0]=X&leagues[1]=Y which Express
+    // parses as a plain object {0:'X',1:'Y'} rather than an array.
+    if (!Array.isArray(leagues) && typeof leagues === "object") {
+      leagues = Object.values(leagues);
+    }
 
     // Fetch all matches for the date from the DB
     const allMatches = await databaseService.getMatchesByDate(date);

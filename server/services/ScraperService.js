@@ -25,6 +25,9 @@ class ScraperService {
     this.io = io;
     this.dbService = new DatabaseService();
     this._ensureErrorLogDirectory();
+    // Single global queue — all leagues share one sequential worker
+    this._h2hQueue = [];
+    this._queueRunning = false;
   }
 
   /**
@@ -518,14 +521,16 @@ class ScraperService {
       }
 
       emitLog(this.io, `🔗 H2H URL: ${urlBase}`, "info");
+      // networkidle2 waits until ≤2 active connections for 500ms — by that point
+      // H2H sections are either rendered or they simply don't exist for this match.
       await page.goto(urlBase, {
-        waitUntil: "domcontentloaded",
-        timeout: 60000,
+        waitUntil: "networkidle2",
+        timeout: 120000,
       });
 
-      // Wait for at least one H2H section to appear
+      // Short fallback: if sections weren't present at networkidle2, they won't appear.
       await page
-        .waitForSelector(".h2h__section", { timeout: 15000 })
+        .waitForSelector(".h2h__section", { timeout: 5000 })
         .catch(() => null);
 
       const sectionCount = await page.$$eval(
@@ -1313,15 +1318,17 @@ class ScraperService {
   }
 
   /**
-   * AUTOMATED WORKFLOW: Loop through matches and scrape H2H for those not yet scraped
-   * This creates the chained scraping workflow
+   * AUTOMATED WORKFLOW: Add matches to the global H2H queue.   * All leagues share one sequential worker so only one browser/tab accesses
+   * the network at a time — safe for slow connections.
+   * New matches are deduplicated against what is already queued.
+   * If the worker is already running, matches are simply appended and will be
+   * picked up automatically.
    * @param {Array} matches - Array of match objects
    * @returns {Promise<void>}
    */
   async _autoChainH2HScraping(matches) {
     try {
-      // Filter matches that haven't been scraped yet
-      const unscrapedMatches = matches.filter((match) => !match.h2hScraped);
+      const unscrapedMatches = matches.filter((m) => !m.h2hScraped);
 
       if (unscrapedMatches.length === 0) {
         emitLog(
@@ -1332,72 +1339,337 @@ class ScraperService {
         return;
       }
 
+      // Deduplicate against existing queue so re-selecting a league doesn't re-queue
+      const existingIds = new Set(this._h2hQueue.map((m) => m.id));
+      const newMatches = unscrapedMatches.filter((m) => !existingIds.has(m.id));
+
+      if (newMatches.length === 0) {
+        emitLog(
+          this.io,
+          `ℹ️ All ${unscrapedMatches.length} matches already queued for H2H scraping`,
+          "info",
+        );
+        return;
+      }
+
+      this._h2hQueue.push(...newMatches);
       emitLog(
         this.io,
-        `📊 Processing H2H data for ${unscrapedMatches.length} of ${matches.length} matches...`,
+        `📥 Added ${newMatches.length} match(es) to H2H queue (total queued: ${this._h2hQueue.length})`,
         "info",
       );
 
-      // Process each match sequentially to avoid overwhelming the site
-      for (let i = 0; i < unscrapedMatches.length; i++) {
-        const match = unscrapedMatches[i];
-        const matchNumber = i + 1;
-        const totalMatches = unscrapedMatches.length;
+      // Worker already running — it will drain the queue automatically
+      if (this._queueRunning) {
+        emitLog(
+          this.io,
+          `⏳ H2H worker already running — new matches will be processed in order`,
+          "info",
+        );
+        return;
+      }
 
-        try {
-          emitLog(
-            this.io,
-            `⚽ Scraping Match ${matchNumber} of ${totalMatches}: ${match.homeTeam} vs ${match.awayTeam}...`,
-            "info",
-          );
+      // Set flag SYNCHRONOUSLY before first await so no second league request
+      // can slip through and launch a second parallel worker.
+      this._queueRunning = true;
+      this._runH2HQueue().catch((err) => {
+        console.error("H2H queue worker crashed:", err);
+        this._queueRunning = false;
+      });
+    } catch (error) {
+      emitLog(this.io, `✗ Error queuing H2H chain: ${error.message}`, "error");
+    }
+  }
 
-          // Scrape H2H data for this match
-          const result = await this.scrapeH2HAndForm(
-            match.id,
-            match.flashscoreId,
-          );
+  /**
+   * Configure a Puppeteer page with stealth headers and viewport.
+   * Extracted so it can be reused for both tabs in the ping-pong worker.
+   * @param {import('puppeteer').Page} page
+   * @private
+   */
+  async _setupPage(page) {
+    await page.setViewport({ width: 1920, height: 1080 });
+    await page.setUserAgent(
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    );
+    await page.setExtraHTTPHeaders({ "Accept-Language": "en-US,en;q=0.9" });
+    await page.evaluateOnNewDocument(() => {
+      Object.defineProperty(navigator, "webdriver", { get: () => false });
+      window.chrome = { runtime: {} };
+    });
+  }
 
-          if (result.success) {
-            emitLog(
-              this.io,
-              `✓ H2H Synced to MySQL: ${match.homeTeam} vs ${match.awayTeam} (${result.count} records)`,
-              "success",
-            );
-          } else {
-            emitLog(
-              this.io,
-              `⚠️ H2H scraping incomplete for ${match.homeTeam} vs ${match.awayTeam}`,
-              "warning",
-            );
-          }
-
-          // Delay between matches to prevent IP bans
-          if (i < unscrapedMatches.length - 1) {
-            await delay(3000); // 3 second delay between matches
-          }
-        } catch (error) {
-          emitLog(
-            this.io,
-            `✗ Failed to scrape H2H for ${match.homeTeam} vs ${match.awayTeam}: ${error.message}`,
-            "error",
-          );
-          // Continue with next match even if one fails
-          continue;
+  /**
+   * Navigate a page to the H2H URL for a match.
+   * Returns true if the page loaded and at least one H2H section appeared.
+   * Uses 120 s navigation timeout so slow connections don't time out.
+   * @param {import('puppeteer').Page} page
+   * @param {Object} match
+   * @returns {Promise<boolean>}
+   * @private
+   */
+  async _navigateH2HPage(page, match) {
+    try {
+      let urlBase;
+      if (match.flashscoreUrl) {
+        let pathname = match.flashscoreUrl;
+        if (pathname.startsWith("http")) {
+          pathname = new URL(pathname).pathname;
         }
+        pathname = pathname.replace(/\/?$/, "/");
+        urlBase = `https://www.flashscore.com${pathname}h2h/overall/`;
+      } else {
+        urlBase = `https://www.flashscore.com/match/${match.flashscoreId}/#/h2h/overall`;
+      }
+
+      emitLog(this.io, `🔗 H2H URL: ${urlBase}`, "info");
+
+      // networkidle2 waits until ≤2 active connections for 500ms — by that point
+      // H2H sections are either rendered or they simply don't exist for this match.
+      await page.goto(urlBase, {
+        waitUntil: "networkidle2",
+        timeout: 120000,
+      });
+
+      // Short fallback: if sections weren't present at networkidle2, they won't appear.
+      await page
+        .waitForSelector(".h2h__section", { timeout: 5000 })
+        .catch(() => null);
+
+      return true;
+    } catch (err) {
+      emitLog(
+        this.io,
+        `❌ Navigation failed for ${match.homeTeam} vs ${match.awayTeam}: ${err.message}`,
+        "error",
+      );
+      return false;
+    }
+  }
+
+  /**
+   * Extract, validate and persist H2H data from an already-loaded page.
+   * Does not touch the browser — only works with the provided page.
+   * @param {import('puppeteer').Page} page
+   * @param {Object} match  - Full match object from the DB
+   * @private
+   */
+  async _processH2HPage(page, match) {
+    try {
+      if (match.h2hScraped) {
+        emitLog(
+          this.io,
+          `✓ H2H already synced: ${match.homeTeam} vs ${match.awayTeam}`,
+          "success",
+        );
+        return;
+      }
+
+      const sectionCount = await page.$$eval(
+        ".h2h__section",
+        (els) => els.length,
+      );
+      emitLog(
+        this.io,
+        `✓ ${sectionCount}/3 H2H sections detected in DOM`,
+        sectionCount === 3 ? "success" : "warning",
+      );
+
+      const validationResult = await this._validateH2HSelectors(page, match);
+      if (validationResult.count === 0) {
+        await this._captureErrorScreenshot(
+          page,
+          match,
+          "no_h2h_sections_found",
+        );
+        emitLog(
+          this.io,
+          `⚠️ H2H scraping incomplete for ${match.homeTeam} vs ${match.awayTeam}`,
+          "warning",
+        );
+        return;
+      }
+      if (validationResult.count < 3) {
+        await this._captureErrorScreenshot(page, match, "partial_h2h_sections");
+      }
+
+      const allH2HData = await this._scrapeSectionsByIndex(
+        page,
+        match.id,
+        match.homeTeam,
+        match.awayTeam,
+      );
+
+      if (allH2HData.length === 0) {
+        emitLog(
+          this.io,
+          `⚠️ No H2H data found for ${match.homeTeam} vs ${match.awayTeam}`,
+          "warning",
+        );
+        return;
+      }
+
+      const homeCount = allH2HData.filter(
+        (d) => d.sectionType === "HOME_FORM",
+      ).length;
+      const awayCount = allH2HData.filter(
+        (d) => d.sectionType === "AWAY_FORM",
+      ).length;
+      const directCount = allH2HData.filter(
+        (d) => d.sectionType === "DIRECT_H2H",
+      ).length;
+
+      emitLog(
+        this.io,
+        `💾 Saving ${allH2HData.length} H2H records (Home: ${homeCount}, Away: ${awayCount}, Direct: ${directCount})...`,
+        "info",
+      );
+
+      await this.dbService.saveH2HData(allH2HData);
+      await this.dbService.markH2HScraped(match.id);
+
+      if (this.io) {
+        this.io.emit("h2h-synced", { matchId: match.id });
       }
 
       emitLog(
         this.io,
-        `🎉 Automated H2H chain complete! Processed ${unscrapedMatches.length} matches.`,
+        `✓ H2H Synced to MySQL: ${match.homeTeam} vs ${match.awayTeam} (${allH2HData.length} records)`,
         "success",
       );
     } catch (error) {
       emitLog(
         this.io,
-        `✗ Error in automated H2H chain: ${error.message}`,
+        `❌ Error processing H2H for ${match.homeTeam} vs ${match.awayTeam}: ${error.message}`,
         "error",
       );
-      console.error("Auto-chain H2H error:", error);
+    }
+  }
+
+  /**
+   * Single-browser, two-tab ping-pong queue worker.
+   *
+   * One browser is launched for the entire queue — no per-match browser startup.
+   * Two tabs are kept open: while tab A's data is being extracted and saved,
+   * tab B is already navigating to the next match URL.  This hides network
+   * latency behind processing time, which is the biggest win on a slow connection.
+   *
+   * After the queue drains the browser is closed.  If new items arrive while
+   * the worker is running they are appended and processed without restarting.
+   * @private
+   */
+  async _runH2HQueue() {
+    // Flag already set synchronously in _autoChainH2HScraping before this was called
+    let browser;
+
+    try {
+      emitLog(
+        this.io,
+        `🚀 Starting H2H queue worker (${this._h2hQueue.length} match(es) queued)...`,
+        "info",
+      );
+
+      browser = await puppeteer.launch({
+        headless: true,
+        protocolTimeout: 120000,
+        args: [
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+          "--disable-blink-features=AutomationControlled",
+          "--disable-dev-shm-usage",
+        ],
+      });
+
+      // Two tabs — ping-pong between them
+      const pageA = await browser.newPage();
+      const pageB = await browser.newPage();
+      await this._setupPage(pageA);
+      await this._setupPage(pageB);
+
+      const pages = [pageA, pageB];
+      let activeIdx = 0; // which tab is currently being processed
+
+      // Dequeue first match and start its navigation immediately
+      let currentMatch = this._h2hQueue.shift();
+      let currentNavPromise = this._navigateH2HPage(
+        pages[activeIdx],
+        currentMatch,
+      );
+
+      let processed = 0;
+
+      while (currentMatch) {
+        const nextIdx = 1 - activeIdx;
+        const nextMatch =
+          this._h2hQueue.length > 0 ? this._h2hQueue.shift() : null;
+
+        // Fire navigation for the next match on the idle tab RIGHT NOW —
+        // this runs in parallel with the processing of the current match.
+        let nextNavPromise = null;
+        if (nextMatch) {
+          emitLog(
+            this.io,
+            `⏩ Pre-loading next: ${nextMatch.homeTeam} vs ${nextMatch.awayTeam}`,
+            "info",
+          );
+          nextNavPromise = this._navigateH2HPage(pages[nextIdx], nextMatch);
+        }
+
+        emitLog(
+          this.io,
+          `⚽ Processing match ${++processed}: ${currentMatch.homeTeam} vs ${currentMatch.awayTeam}...`,
+          "info",
+        );
+
+        // Wait for current navigation, then extract + save
+        const navOk = await currentNavPromise;
+        if (navOk) {
+          await this._processH2HPage(pages[activeIdx], currentMatch);
+        } else {
+          emitLog(
+            this.io,
+            `⚠️ Skipped ${currentMatch.homeTeam} vs ${currentMatch.awayTeam} (navigation failed)`,
+            "warning",
+          );
+        }
+
+        // 1-second politeness delay — short because reusing browser cuts overhead
+        if (nextMatch) {
+          await delay(1000);
+        }
+
+        // Swap tabs and advance
+        currentMatch = nextMatch;
+        currentNavPromise = nextNavPromise;
+        activeIdx = nextIdx;
+      }
+
+      emitLog(
+        this.io,
+        `🎉 H2H queue complete! Processed ${processed} match(es).`,
+        "success",
+      );
+    } catch (error) {
+      emitLog(this.io, `✗ H2H queue worker error: ${error.message}`, "error");
+      console.error("H2H queue worker error:", error);
+    } finally {
+      if (browser) {
+        await browser.close().catch(() => {});
+      }
+      this._queueRunning = false;
+
+      // If leagues were added while we were running, restart immediately
+      if (this._h2hQueue.length > 0) {
+        emitLog(
+          this.io,
+          `📥 ${this._h2hQueue.length} match(es) arrived during processing — restarting worker...`,
+          "info",
+        );
+        this._runH2HQueue().catch((err) => {
+          console.error("H2H queue worker restart failed:", err);
+          this._queueRunning = false;
+        });
+      }
     }
   }
 }

@@ -140,6 +140,75 @@ export async function fetchPredictions(date, leagues = []) {
   }
 }
 
+/**
+ * Save a set of generated tickets to the database.
+ * @param {string} matchDate - YYYY-MM-DD date the predictions were for
+ * @param {number} teamsPerTicket - Number of matches per ticket
+ * @param {Array<Array>} tickets - Array of ticket arrays (each containing prediction objects)
+ */
+export async function saveTickets(matchDate, teamsPerTicket, tickets) {
+  try {
+    const response = await apiClient.post("/tickets", {
+      matchDate,
+      teamsPerTicket,
+      tickets,
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error saving tickets:", error);
+    const errorMessage =
+      error.response?.data?.error || "Failed to save tickets.";
+    throw new Error(errorMessage);
+  }
+}
+
+/**
+ * Fetch all saved ticket batches (no items, newest first).
+ */
+export async function fetchTicketBatches() {
+  try {
+    const response = await apiClient.get("/tickets");
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching ticket batches:", error);
+    throw new Error(
+      error.response?.data?.error || "Failed to fetch ticket batches.",
+    );
+  }
+}
+
+/**
+ * Fetch a single saved batch with all tickets reconstructed.
+ * @param {number} batchId
+ */
+export async function fetchTicketBatch(batchId) {
+  try {
+    const response = await apiClient.get(`/tickets/${batchId}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching ticket batch:", error);
+    throw new Error(
+      error.response?.data?.error || "Failed to fetch ticket batch.",
+    );
+  }
+}
+
+/**
+ * Delete a saved ticket batch.
+ * @param {number} batchId
+ */
+export async function deleteTicketBatch(batchId) {
+  try {
+    const response = await apiClient.delete(`/tickets/${batchId}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error deleting ticket batch:", error);
+    throw new Error(
+      error.response?.data?.error || "Failed to delete ticket batch.",
+    );
+  }
+}
+
 // Add request interceptor for logging (optional)
 apiClient.interceptors.request.use(
   (config) => {
