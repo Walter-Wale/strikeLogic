@@ -35,15 +35,15 @@ function chunk(array, size) {
   return chunks;
 }
 
-function buildPool(teamNames, maxAppearances) {
+function buildPool(predictions, maxAppearances) {
   const pool = [];
   for (let i = 0; i < Math.max(1, maxAppearances); i++) {
-    pool.push(...teamNames);
+    pool.push(...predictions);
   }
   return pool;
 }
 
-function TicketCard({ teams, idx }) {
+function TicketCard({ matches, idx }) {
   return (
     <Card
       variant="outlined"
@@ -56,27 +56,61 @@ function TicketCard({ teams, idx }) {
             Ticket {idx + 1}
           </Typography>
         }
-        subheader={`${teams.length} team${teams.length !== 1 ? "s" : ""}`}
+        subheader={`${matches.length} match${matches.length !== 1 ? "es" : ""}`}
         sx={{ pb: 0, "& .MuiCardHeader-content": { overflow: "hidden" } }}
       />
       <Divider />
       <CardContent sx={{ pt: 1, pb: "12px !important" }}>
         <List dense disablePadding>
-          {teams.map((team, i) => (
-            <ListItem key={i} disableGutters sx={{ py: 0.25 }}>
+          {matches.map((p, i) => (
+            <ListItem key={i} disableGutters sx={{ py: 0.4 }}>
               <ListItemText
                 primary={
-                  <Typography variant="body2">
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                     <Typography
                       component="span"
                       variant="body2"
                       fontWeight={700}
-                      sx={{ mr: 1, color: "primary.main" }}
+                      sx={{ mr: 0.5, color: "primary.main", minWidth: 18 }}
                     >
                       {i + 1}.
                     </Typography>
-                    {team}
-                  </Typography>
+                    {/* Home team — bold + green if winner */}
+                    <Typography
+                      component="span"
+                      variant="body2"
+                      fontWeight={p.predictedWinner === p.homeTeam ? 700 : 400}
+                      sx={{
+                        color:
+                          p.predictedWinner === p.homeTeam
+                            ? "success.main"
+                            : "text.primary",
+                      }}
+                    >
+                      {p.homeTeam}
+                    </Typography>
+                    <Typography
+                      component="span"
+                      variant="body2"
+                      sx={{ color: "text.disabled", mx: 0.5 }}
+                    >
+                      vs
+                    </Typography>
+                    {/* Away team — bold + green if winner */}
+                    <Typography
+                      component="span"
+                      variant="body2"
+                      fontWeight={p.predictedWinner === p.awayTeam ? 700 : 400}
+                      sx={{
+                        color:
+                          p.predictedWinner === p.awayTeam
+                            ? "success.main"
+                            : "text.primary",
+                      }}
+                    >
+                      {p.awayTeam}
+                    </Typography>
+                  </Box>
                 }
               />
             </ListItem>
@@ -93,19 +127,18 @@ export default function TicketsTab({ predictions = [] }) {
   const [multiCount, setMultiCount] = useState(10);
   const [tickets, setTickets] = useState([]);
 
-  const teamNames = predictions.map((p) => p.predictedWinner);
-  const noData = teamNames.length === 0;
+  const noData = predictions.length === 0;
   const perTicket = Math.max(1, teamsPerTicket);
 
   function handleRandomize() {
     if (noData) return;
-    const pool = buildPool(teamNames, maxAppearances);
+    const pool = buildPool(predictions, maxAppearances);
     setTickets(chunk(shuffle(pool), perTicket));
   }
 
   function handleMultiRandomize() {
     if (noData) return;
-    let pool = buildPool(teamNames, maxAppearances);
+    let pool = buildPool(predictions, maxAppearances);
     const times = Math.max(2, multiCount);
     for (let i = 0; i < times; i++) {
       pool = shuffle(pool);
@@ -194,7 +227,7 @@ export default function TicketsTab({ predictions = [] }) {
             sx={{ ml: "auto" }}
           >
             {tickets.length} ticket{tickets.length !== 1 ? "s" : ""} &bull;{" "}
-            {teamNames.length * Math.max(1, maxAppearances)} team slots
+            {predictions.length * Math.max(1, maxAppearances)} match slots
           </Typography>
         )}
       </Box>
@@ -222,9 +255,9 @@ export default function TicketsTab({ predictions = [] }) {
 
       {tickets.length > 0 && (
         <Grid container spacing={2}>
-          {tickets.map((teams, idx) => (
+          {tickets.map((matches, idx) => (
             <Grid item xs={12} sm={6} md={4} key={idx}>
-              <TicketCard teams={teams} idx={idx} />
+              <TicketCard matches={matches} idx={idx} />
             </Grid>
           ))}
         </Grid>
