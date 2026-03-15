@@ -21,7 +21,7 @@ import ShuffleIcon from "@mui/icons-material/Shuffle";
 import FilterNoneIcon from "@mui/icons-material/FilterNone";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import SaveIcon from "@mui/icons-material/Save";
-import { saveTickets } from "../services/apiService";
+import { saveTickets } from "../../../services/apiService";
 
 function shuffle(array) {
   const arr = [...array];

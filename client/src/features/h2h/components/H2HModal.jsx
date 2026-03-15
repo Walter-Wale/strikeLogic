@@ -25,7 +25,7 @@ import {
   Chip,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
-import { fetchH2HData } from "../services/apiService";
+import { fetchH2HData } from "../../../services/apiService";
 import dayjs from "dayjs";
 
 // TabPanel component for rendering tab content
@@ -225,15 +225,9 @@ const H2HModal = ({
         }}
       >
         <Typography variant="h5" component="div">
-          Match Analysis: <strong>{homeTeam}</strong> vs{" "}
-          <strong>{awayTeam}</strong>
+          {homeTeam} vs {awayTeam}
         </Typography>
-        <IconButton
-          edge="end"
-          color="inherit"
-          onClick={onClose}
-          aria-label="close"
-        >
+        <IconButton onClick={onClose} size="small">
           <CloseIcon />
         </IconButton>
       </DialogTitle>
@@ -245,10 +239,10 @@ const H2HModal = ({
               display: "flex",
               justifyContent: "center",
               alignItems: "center",
-              minHeight: 300,
+              py: 8,
             }}
           >
-            <CircularProgress />
+            <CircularProgress size={60} />
           </Box>
         )}
 
@@ -263,35 +257,40 @@ const H2HModal = ({
             <Tabs
               value={activeTab}
               onChange={handleTabChange}
-              variant="fullWidth"
               sx={{ borderBottom: 1, borderColor: "divider" }}
             >
               <Tab label={`${homeTeam} Recent Form`} />
               <Tab label={`${awayTeam} Recent Form`} />
-              <Tab label="Historical Head-to-Head" />
+              <Tab label="Head-to-Head History" />
             </Tabs>
 
             <TabPanel value={activeTab} index={0}>
               <Typography variant="h6" gutterBottom>
-                Last 5 Matches - {homeTeam}
+                {homeTeam} - Recent Home Matches
               </Typography>
               {renderMatchTable(h2hData.HOME_FORM, "HOME_FORM")}
             </TabPanel>
 
             <TabPanel value={activeTab} index={1}>
               <Typography variant="h6" gutterBottom>
-                Last 5 Matches - {awayTeam}
+                {awayTeam} - Recent Away Matches
               </Typography>
               {renderMatchTable(h2hData.AWAY_FORM, "AWAY_FORM")}
             </TabPanel>
 
             <TabPanel value={activeTab} index={2}>
               <Typography variant="h6" gutterBottom>
-                Head-to-Head History (Last 5 Encounters)
+                {homeTeam} vs {awayTeam} - Historical Results
               </Typography>
               {renderMatchTable(h2hData.DIRECT_H2H, "DIRECT_H2H")}
             </TabPanel>
           </>
+        )}
+
+        {!loading && !error && !h2hData && (
+          <Alert severity="warning">
+            No H2H data available for this match.
+          </Alert>
         )}
       </DialogContent>
     </Dialog>

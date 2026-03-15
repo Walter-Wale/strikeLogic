@@ -8,7 +8,7 @@ import { Paper, Box, Typography } from "@mui/material";
 import {
   subscribeToLogs,
   unsubscribeFromLogs,
-} from "../services/socketService";
+} from "../../services/socketService";
 
 const LogConsole = () => {
   const [logs, setLogs] = useState([]);

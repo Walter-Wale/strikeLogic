@@ -25,7 +25,7 @@ import {
   fetchTicketBatches,
   fetchTicketBatch,
   deleteTicketBatch,
-} from "../services/apiService";
+} from "../../../services/apiService";
 
 /** Reusable ticket card (identical layout to TicketsTab) */
 function TicketCard({ matches, idx }) {
