@@ -129,8 +129,10 @@ async function scrapeMatchesByDate(
     );
 
     // DEBUG: Get page info
-    const pageTitle = await page.title();
-    emitLog(io, `Page Title: ${pageTitle}`, "info");
+    if (process.env.DEBUG_SCRAPER === "true") {
+      const pageTitle = await page.title();
+      emitLog(io, `Page Title: ${pageTitle}`, "info");
+    }
 
     // DEBUG: Check for cookie consent and try to accept
     try {
@@ -156,49 +158,69 @@ async function scrapeMatchesByDate(
     }
 
     // DEBUG: Save HTML content for inspection
-    const htmlContent = await page.content();
-    const htmlPath = path.join(
-      __dirname,
-      "../..",
-      "logs",
-      "errors",
-      `page_${dateFormatted}.html`,
-    );
-    fs.writeFileSync(htmlPath, htmlContent);
-    emitLog(io, `📄 HTML saved: ${htmlPath}`, "info");
+    if (process.env.DEBUG_SCRAPER === "true") {
+      const htmlContent = await page.content();
+      const htmlPath = path.join(
+        __dirname,
+        "../..",
+        "logs",
+        "errors",
+        `page_${dateFormatted}.html`,
+      );
+      fs.writeFileSync(htmlPath, htmlContent);
+      emitLog(io, `📄 HTML saved: ${htmlPath}`, "info");
 
-    // Take screenshot for debugging (will help verify page loaded correctly)
-    const screenshotPath = path.join(
-      __dirname,
-      "../..",
-      "logs",
-      "errors",
-      `scrape_${dateFormatted}.png`,
-    );
-    await page.screenshot({ path: screenshotPath, fullPage: true });
-    emitLog(io, `📸 Screenshot saved: ${screenshotPath}`, "info");
+      // Take screenshot for debugging
+      const screenshotPath = path.join(
+        __dirname,
+        "../..",
+        "logs",
+        "errors",
+        `scrape_${dateFormatted}.png`,
+      );
+      await page.screenshot({ path: screenshotPath, fullPage: true });
+      emitLog(io, `📸 Screenshot saved: ${screenshotPath}`, "info");
+    }
 
     emitLog(io, "Scraping match fixtures from FlashScore...", "info");
 
-    // DEBUG: Check what selectors match
-    const selectorDebug = await page.evaluate((sel) => {
-      return {
-        matchRowCount: document.querySelectorAll(sel.MATCH_ROW_SELECTOR).length,
-        scheduledMatchCount: document.querySelectorAll(
-          ".event__match--scheduled",
-        ).length,
-        liveMatchCount: document.querySelectorAll(".event__match--live").length,
-        allMatchCount: document.querySelectorAll(".event__match").length,
-        homeTeamCount: document.querySelectorAll(sel.HOME_TEAM_SELECTOR).length,
-        eventCount: document.querySelectorAll('[id^="g_1_"]').length,
-      };
-    }, selectors);
+    // Wait for at least one match row to appear in the DOM before extracting.
+    // This replaces the timing dependency on page.content()/screenshot I/O that
+    // previously happened to give JS enough time to render.
+    await page
+      .waitForSelector(".event__match", { timeout: 15000 })
+      .catch(() => {
+        emitLog(
+          io,
+          `⚠️ Timed out waiting for match rows — page may still be loading`,
+          "warning",
+        );
+      });
 
-    emitLog(
-      io,
-      `DEBUG - Selector matches: ${JSON.stringify(selectorDebug)}`,
-      "info",
-    );
+    if (process.env.DEBUG_SCRAPER === "true") {
+      // DEBUG: Check what selectors match
+      const selectorDebug = await page.evaluate((sel) => {
+        return {
+          matchRowCount: document.querySelectorAll(sel.MATCH_ROW_SELECTOR)
+            .length,
+          scheduledMatchCount: document.querySelectorAll(
+            ".event__match--scheduled",
+          ).length,
+          liveMatchCount: document.querySelectorAll(".event__match--live")
+            .length,
+          allMatchCount: document.querySelectorAll(".event__match").length,
+          homeTeamCount: document.querySelectorAll(sel.HOME_TEAM_SELECTOR)
+            .length,
+          eventCount: document.querySelectorAll('[id^="g_1_"]').length,
+        };
+      }, selectors);
+
+      emitLog(
+        io,
+        `DEBUG - Selector matches: ${JSON.stringify(selectorDebug)}`,
+        "info",
+      );
+    }
 
     // Extract match data from page using verified selectors
     const matches = await page.evaluate((sel) => {

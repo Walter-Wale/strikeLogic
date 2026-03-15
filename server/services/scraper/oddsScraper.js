@@ -76,22 +76,32 @@ async function scrapeOddsFromPage(page, date, io) {
       );
     }
 
-    // Always save HTML snapshot for selector verification, even if tab click failed
-    const dateFormatted = date.replace(/-/g, "");
-    const oddsHtmlPath = path.join(
-      __dirname,
-      "../..",
-      "logs",
-      "errors",
-      `odds_tab_${dateFormatted}.html`,
-    );
-    const oddsHtml = await page.content();
-    fs.writeFileSync(oddsHtmlPath, oddsHtml);
-    emitLog(io, `📄 ODDS tab HTML saved: ${oddsHtmlPath}`, "info");
+    // Save HTML snapshot only when DEBUG_SCRAPER=true (used to verify/update selectors)
+    if (process.env.DEBUG_SCRAPER === "true") {
+      const dateFormatted = date.replace(/-/g, "");
+      const oddsHtmlPath = path.join(
+        __dirname,
+        "../..",
+        "logs",
+        "errors",
+        `odds_tab_${dateFormatted}.html`,
+      );
+      const oddsHtml = await page.content();
+      fs.writeFileSync(oddsHtmlPath, oddsHtml);
+      emitLog(io, `📄 ODDS tab HTML saved: ${oddsHtmlPath}`, "info");
+    }
 
     if (!oddsTabClicked) {
       return oddsMap;
     }
+
+    // Wait for odds cells to appear in the DOM before extracting.
+    // The delayWithJitter above was never the real wait — page.content() was
+    // inadvertently providing ~300ms of extra delay before it was gated behind
+    // DEBUG_SCRAPER. waitForSelector exits the instant the first cell renders.
+    await page
+      .waitForSelector(".event__odd--odd1", { timeout: 8000 })
+      .catch(() => null);
 
     // Extract odds for every match row, matching by flashscoreId
     // Verified DOM structure (2026-03-12):
@@ -153,7 +163,7 @@ async function scrapeOddsFromPage(page, date, io) {
     } else {
       emitLog(
         io,
-        `⚠️ Odds tab loaded but no odds values extracted. Inspect ${oddsHtmlPath} and update ODDS_SELECTORS in shared/selectors.js`,
+        `⚠️ Odds tab loaded but no odds values extracted. Re-run with DEBUG_SCRAPER=true to save an HTML snapshot and update ODDS_SELECTORS in shared/selectors.js`,
         "warning",
       );
     }

@@ -3,7 +3,7 @@
     "delays": {
       "fixturePageLoad": 800,
       "oddsTabWait": 800,
-      "h2hBetweenMatch": 200,
+      "h2hBetweenMatch": 500,
       "jitterMax": 400
     },
     "h2hConcurrency": 1,

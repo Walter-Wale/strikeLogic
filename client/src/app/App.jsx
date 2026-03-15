@@ -66,8 +66,8 @@ function App() {
   // Socket: real-time H2H sync + chain-complete detection
   useH2HSocket(setAllMatches, setChainCompleteDetected);
 
-  // Scraping: auto-trigger when leagues + matches are ready
-  useH2HScraping(selectedDate, selectedLeagues, matches.length, loading);
+  // Scraping: manual trigger via "Start H2H Analysis" button
+  const { handleStartH2H } = useH2HScraping(selectedDate, selectedLeagues);
 
   // Handler: Analyze match (open H2H modal)
   const handleAnalyzeClick = (matchId, flashscoreId, homeTeam, awayTeam) => {
@@ -101,6 +101,7 @@ function App() {
         allMatches={allMatches}
         loading={loading}
         onLoadReady={handleLoadReadyMatches}
+        onStartH2H={handleStartH2H}
       />
 
       {/* Error Alert */}

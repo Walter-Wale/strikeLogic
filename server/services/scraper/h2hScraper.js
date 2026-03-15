@@ -1,5 +1,5 @@
 const selectors = require("../../../shared/selectors");
-const { launchH2HSingleBrowser } = require("./browser");
+const { launchH2HQueueBrowser, setupH2HPage } = require("./browser");
 const {
   validateH2HSelectors,
   scrapeSectionsByIndex,
@@ -45,16 +45,9 @@ async function scrapeH2HAndForm(matchId, flashscoreId, io, dbService) {
       "info",
     );
 
-    // Launch browser with stealth settings
-    browser = await launchH2HSingleBrowser();
-
-    const page = await browser.newPage();
-
-    // Set viewport and user agent
-    await page.setViewport({ width: 1920, height: 1080 });
-    await page.setUserAgent(
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    );
+    // Launch browser and create a resource-optimised page
+    browser = await launchH2HQueueBrowser();
+    const page = await setupH2HPage(browser);
 
     emitLog(
       io,
@@ -107,49 +100,51 @@ async function scrapeH2HAndForm(matchId, flashscoreId, io, dbService) {
       "info",
     );
 
-    // DEBUG: Check what sections exist on the page
-    const debugInfo = await page.evaluate((sel) => {
-      const sections = document.querySelectorAll(sel);
-      const sectionDetails = [];
+    if (process.env.DEBUG_SCRAPER === "true") {
+      // DEBUG: Check what sections exist on the page
+      const debugInfo = await page.evaluate((sel) => {
+        const sections = document.querySelectorAll(sel);
+        const sectionDetails = [];
 
-      sections.forEach((section, index) => {
-        // Get header text
-        const headerSelectors = [
-          ".wcl-headerSection_SGpOR span",
-          '[data-testid="wcl-scores-overline-02"]',
-          ".wcl-bold_NZXv6",
-        ];
+        sections.forEach((section, index) => {
+          // Get header text
+          const headerSelectors = [
+            ".wcl-headerSection_SGpOR span",
+            '[data-testid="wcl-scores-overline-02"]',
+            ".wcl-bold_NZXv6",
+          ];
 
-        let headerText = "";
-        for (const hSel of headerSelectors) {
-          const headerEl = section.querySelector(hSel);
-          if (headerEl) {
-            headerText = headerEl.textContent.trim();
-            break;
+          let headerText = "";
+          for (const hSel of headerSelectors) {
+            const headerEl = section.querySelector(hSel);
+            if (headerEl) {
+              headerText = headerEl.textContent.trim();
+              break;
+            }
           }
-        }
 
-        const rowCount = section.querySelectorAll(".h2h__row").length;
+          const rowCount = section.querySelectorAll(".h2h__row").length;
 
-        sectionDetails.push({
-          index,
-          headerText,
-          rowCount,
-          hasRows: rowCount > 0,
+          sectionDetails.push({
+            index,
+            headerText,
+            rowCount,
+            hasRows: rowCount > 0,
+          });
         });
-      });
 
-      return {
-        totalSections: sections.length,
-        sections: sectionDetails,
-      };
-    }, selectors.H2H_SELECTORS.CONTAINERS);
+        return {
+          totalSections: sections.length,
+          sections: sectionDetails,
+        };
+      }, selectors.H2H_SELECTORS.CONTAINERS);
 
-    emitLog(
-      io,
-      `[DEBUG] Found ${debugInfo.totalSections} sections: ${JSON.stringify(debugInfo.sections)}`,
-      "info",
-    );
+      emitLog(
+        io,
+        `[DEBUG] Found ${debugInfo.totalSections} sections: ${JSON.stringify(debugInfo.sections)}`,
+        "info",
+      );
+    }
 
     // Validate selectors before extraction
     const validationResult = await validateH2HSelectors(page, match, io);

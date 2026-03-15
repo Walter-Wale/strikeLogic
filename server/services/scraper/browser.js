@@ -81,7 +81,7 @@ async function setupFixturePage(browser) {
 }
 
 /**
- * Launch browser suitable for the H2H queue worker (concurrent tabs)
+ * Launch browser suitable for the H2H queue worker and single H2H scrapes.
  * @returns {Promise<Browser>}
  */
 async function launchH2HQueueBrowser() {
@@ -98,41 +98,64 @@ async function launchH2HQueueBrowser() {
 }
 
 /**
- * Launch browser for single H2H scrape (scrapeH2HAndForm)
- * @returns {Promise<Browser>}
+ * Create and configure a page optimised for H2H scraping.
+ * Blocks images, stylesheets, fonts and media to reduce bandwidth on slow
+ * connections.  Applies stealth headers so the page appears human-like.
+ * @param {Browser} browser
+ * @returns {Promise<Page>}
  */
-async function launchH2HSingleBrowser() {
-  return puppeteer.launch({
-    headless: true,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-blink-features=AutomationControlled",
-    ],
-  });
-}
+async function setupH2HPage(browser) {
+  const page = await browser.newPage();
 
-/**
- * Configure a Puppeteer page with stealth headers and viewport.
- * Used for H2H queue worker tabs.
- * @param {Page} page
- */
-async function setupPage(page) {
   await page.setViewport({ width: 1920, height: 1080 });
   await page.setUserAgent(
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
   );
   await page.setExtraHTTPHeaders({ "Accept-Language": "en-US,en;q=0.9" });
   await page.evaluateOnNewDocument(() => {
     Object.defineProperty(navigator, "webdriver", { get: () => false });
     window.chrome = { runtime: {} };
   });
+
+  // Block heavy resources — images, CSS, fonts, media and known analytics/ad
+  // scripts are not needed for H2H extraction and waste bandwidth.
+  //
+  // IMPORTANT: The try/catch around every call is mandatory.
+  // When page.goto() starts a new navigation, Puppeteer still fires the
+  // "request" event for in-flight requests left over from the *previous*
+  // navigation. Calling req.abort() / req.continue() on those already-resolved
+  // requests throws "Request is already handled!". Without the catch, that
+  // uncaught exception corrupts Puppeteer's internal interception queue and
+  // causes the next page.goto() to hang forever.
+  await page.setRequestInterception(true);
+  page.on("request", (req) => {
+    try {
+      const url = req.url();
+      const type = req.resourceType();
+      if (
+        type === "image" ||
+        type === "stylesheet" ||
+        type === "font" ||
+        type === "media" ||
+        url.includes("analytics") ||
+        url.includes("googletag") ||
+        url.includes("doubleclick")
+      ) {
+        req.abort();
+      } else {
+        req.continue();
+      }
+    } catch (_) {
+      // Silently ignore "Request is already handled!" during navigation transitions
+    }
+  });
+
+  return page;
 }
 
 module.exports = {
   launchFixtureBrowser,
   setupFixturePage,
   launchH2HQueueBrowser,
-  launchH2HSingleBrowser,
-  setupPage,
+  setupH2HPage,
 };

@@ -53,9 +53,9 @@ async function navigateH2HPage(page, match, io) {
         timeout: navTimeout,
       });
 
-      // Wait for H2H sections to render after JS execution
+      // Wait for H2H sections — fresh page so no interception deadlock risk.
       await page
-        .waitForSelector(".h2h__section", { timeout: 15000 })
+        .waitForSelector(".h2h__section", { timeout: 8000 })
         .catch(() => null);
 
       return true;

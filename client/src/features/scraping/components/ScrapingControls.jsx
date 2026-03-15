@@ -19,6 +19,7 @@ function ScrapingControls({
   allMatches,
   loading,
   onLoadReady,
+  onStartH2H,
 }) {
   return (
     <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
@@ -30,8 +31,8 @@ function ScrapingControls({
         🔄 Automated Scraping Dashboard
       </Typography>
       <Typography variant="body2" sx={{ mb: 2, color: "text.secondary" }}>
-        Select a date and leagues - scraping happens automatically with full H2H
-        analysis for every match
+        Select a date to load fixtures and odds, then select leagues and click
+        Start H2H Analysis to scrape form data for those matches.
       </Typography>
       <Grid container spacing={3}>
         <Grid item xs={12} md={6}>
@@ -45,16 +46,27 @@ function ScrapingControls({
           />
         </Grid>
         <Grid item xs={12}>
-          <Button
-            variant="outlined"
-            color="success"
-            size="large"
-            onClick={onLoadReady}
-            disabled={loading}
-            startIcon={<CheckCircleIcon />}
-          >
-            Load Ready Matches (H2H Complete)
-          </Button>
+          <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+            <Button
+              variant="contained"
+              color="primary"
+              size="large"
+              onClick={onStartH2H}
+              disabled={selectedLeagues.length === 0 || loading}
+            >
+              Start H2H Analysis
+            </Button>
+            <Button
+              variant="outlined"
+              color="success"
+              size="large"
+              onClick={onLoadReady}
+              disabled={loading}
+              startIcon={<CheckCircleIcon />}
+            >
+              Load Ready Matches (H2H Complete)
+            </Button>
+          </Box>
         </Grid>
       </Grid>
       {loading && (

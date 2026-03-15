@@ -1,41 +1,32 @@
-import { useEffect } from "react";
+import { useCallback } from "react";
 import { scrapeH2HByLeagues } from "../../../services/apiService";
 import { formatDate } from "../../../utils/dateUtils";
 
 /**
- * Automatically triggers H2H scraping when leagues + matches are ready.
+ * Returns a manual callback to start H2H scraping for the selected leagues.
+ * H2H scraping is NOT triggered automatically — the user must click the button.
  * @param {import('dayjs').Dayjs} selectedDate
  * @param {string[]} selectedLeagues
- * @param {number} matchesLength
- * @param {boolean} loading
+ * @returns {{ handleStartH2H: () => void }}
  */
-function useH2HScraping(selectedDate, selectedLeagues, matchesLength, loading) {
-  // AUTOMATED WORKFLOW: Trigger H2H scraping when leagues are selected
-  useEffect(() => {
-    // Only trigger if we have matches loaded and leagues selected
-    if (
-      selectedLeagues.length > 0 &&
-      matchesLength > 0 &&
-      !loading &&
-      selectedDate
-    ) {
-      const timer = setTimeout(() => {
-        const formattedDate = formatDate(selectedDate);
+function useH2HScraping(selectedDate, selectedLeagues) {
+  const handleStartH2H = useCallback(() => {
+    if (selectedLeagues.length === 0 || !selectedDate) return;
 
-        scrapeH2HByLeagues(formattedDate, selectedLeagues)
-          .then((response) => {
-            console.log(
-              `H2H scraping started for ${response.matchCount} matches in ${response.leagues.join(", ")}`,
-            );
-          })
-          .catch((err) => {
-            console.error("Failed to start H2H scraping:", err);
-          });
-      }, 1000); // 1 second debounce
+    const formattedDate = formatDate(selectedDate);
 
-      return () => clearTimeout(timer);
-    }
-  }, [selectedLeagues, matchesLength, loading, selectedDate]);
+    scrapeH2HByLeagues(formattedDate, selectedLeagues)
+      .then((response) => {
+        console.log(
+          `H2H scraping started for ${response.matchCount} matches in ${response.leagues.join(", ")}`,
+        );
+      })
+      .catch((err) => {
+        console.error("Failed to start H2H scraping:", err);
+      });
+  }, [selectedDate, selectedLeagues]);
+
+  return { handleStartH2H };
 }
 
 export default useH2HScraping;

@@ -1,4 +1,4 @@
-const { launchH2HQueueBrowser, setupPage } = require("./browser");
+const { launchH2HQueueBrowser, setupH2HPage } = require("./browser");
 const { navigateH2HPage, processH2HPage } = require("./h2hNavigator");
 const { emitLog } = require("../../utils/socketLogger");
 const { delayWithJitter } = require("../../utils/delay");
@@ -76,16 +76,17 @@ async function autoChainH2HScraping(matches, io, dbService) {
 }
 
 /**
- * Multi-tab concurrent queue worker.
+ * Single-page sequential queue worker.
  *
- * One browser is launched for the entire queue with N tabs (configurable via
- * scraping.h2hConcurrency in config.json, default 3).  Each tab runs as an
- * independent worker: navigate → extract → save → grab next item from the
- * shared queue.  Workers drain the queue concurrently so total time scales
- * roughly as total_matches / concurrency instead of linearly.
+ * One browser and one page are reused for the entire queue — the page is
+ * navigated to each match's H2H URL in turn using page.goto(), which avoids
+ * the overhead of opening and closing new tabs.  Resource interception
+ * (images / CSS / fonts / media) is set up in setupH2HPage() so only the
+ * lightweight HTML + JS required for extraction is downloaded.
  *
  * After the queue drains the browser is closed.  If new items arrive while
- * the worker is running they are appended and will restart automatically.
+ * the worker is running they are appended and will be picked up automatically
+ * by the running loop.
  * @param {SocketIO.Server} io
  * @param {DatabaseService} dbService
  */
@@ -102,33 +103,23 @@ async function runH2HQueue(io, dbService) {
 
     browser = await launchH2HQueueBrowser();
 
-    const concurrency = scrapingConfig.h2hConcurrency || 2;
-
-    // Create N pages up-front — each will run as an independent worker
-    const pages = await Promise.all(
-      Array.from({ length: concurrency }, async () => {
-        const p = await browser.newPage();
-        await setupPage(p);
-        return p;
-      }),
-    );
-
     let processed = 0;
 
-    // Each worker loops: grab next match → navigate → extract+save → repeat
-    // JS is single-threaded so queue.shift() calls are inherently sequential (no race)
-    const runWorker = async (page) => {
-      while (_h2hQueue.length > 0) {
-        const match = _h2hQueue.shift();
-        if (!match) break;
+    while (_h2hQueue.length > 0) {
+      const match = _h2hQueue.shift();
+      if (!match) break;
 
-        const matchNum = ++processed;
-        emitLog(
-          io,
-          `⚽ Processing match ${matchNum}: ${match.homeTeam} vs ${match.awayTeam}...`,
-          "info",
-        );
+      const matchNum = ++processed;
+      emitLog(
+        io,
+        `⚽ Processing match ${matchNum}: ${match.homeTeam} vs ${match.awayTeam}...`,
+        "info",
+      );
 
+      // Fresh page per match — eliminates all request-interception state
+      // corruption and renderer crash propagation between matches.
+      const page = await setupH2HPage(browser);
+      try {
         const navOk = await navigateH2HPage(page, match, io);
         if (navOk) {
           await processH2HPage(page, match, io, dbService);
@@ -139,19 +130,24 @@ async function runH2HQueue(io, dbService) {
             "warning",
           );
         }
-
-        // Politeness delay between requests on this worker
-        if (_h2hQueue.length > 0) {
-          await delayWithJitter(
-            scrapingConfig.delays.h2hBetweenMatch,
-            scrapingConfig.delays.jitterMax,
-          );
-        }
+      } catch (err) {
+        emitLog(
+          io,
+          `⚠️ Failed processing ${match.homeTeam} vs ${match.awayTeam}: ${err.message}`,
+          "warning",
+        );
+      } finally {
+        await page.close().catch(() => {});
       }
-    };
 
-    // Run all workers concurrently — they drain from the shared queue
-    await Promise.all(pages.map((page) => runWorker(page)));
+      // Short politeness delay between matches
+      if (_h2hQueue.length > 0) {
+        await delayWithJitter(
+          scrapingConfig.delays.h2hBetweenMatch,
+          scrapingConfig.delays.jitterMax,
+        );
+      }
+    }
 
     emitLog(
       io,
@@ -167,13 +163,14 @@ async function runH2HQueue(io, dbService) {
     }
     _queueRunning = false;
 
-    // If leagues were added while we were running, restart immediately
+    // If new matches arrived while we were running, restart immediately
     if (_h2hQueue.length > 0) {
       emitLog(
         io,
         `📥 ${_h2hQueue.length} match(es) arrived during processing — restarting worker...`,
         "info",
       );
+      _queueRunning = true;
       runH2HQueue(io, dbService).catch((err) => {
         console.error("H2H queue worker restart failed:", err);
         _queueRunning = false;
