@@ -117,6 +117,8 @@ export default function PredictionTable({
   matchDate,
 }) {
   const [activeTab, setActiveTab] = useState(0);
+  // Timestamp bumped on every successful save — triggers PastTicketsTab to refetch
+  const [lastSavedAt, setLastSavedAt] = useState(null);
 
   // Assign stable row IDs from matchId
   const rows = predictions.map((p) => ({ ...p, id: p.matchId }));
@@ -211,12 +213,16 @@ export default function PredictionTable({
 
       {/* Tickets tab panel — always mounted, hidden when inactive */}
       <Box sx={{ display: activeTab === 1 ? "block" : "none" }}>
-        <TicketsTab predictions={predictions} matchDate={matchDate} />
+        <TicketsTab
+          predictions={predictions}
+          matchDate={matchDate}
+          onSaved={() => setLastSavedAt(Date.now())}
+        />
       </Box>
 
       {/* Past Tickets tab panel — always mounted, hidden when inactive */}
       <Box sx={{ display: activeTab === 2 ? "block" : "none" }}>
-        <PastTicketsTab />
+        <PastTicketsTab lastSavedAt={lastSavedAt} />
       </Box>
     </Paper>
   );

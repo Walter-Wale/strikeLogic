@@ -82,56 +82,35 @@ class DatabaseService {
   }
 
   /**
-   * Save or update multiple matches (converts team names to IDs)
-   * @param {Array} matchesArray - Array of match objects with team names
-   * @returns {Promise<Array>} Array of saved match instances with team names
+   * Get only fully-synced (H2H scraped) matches for a date.
+   * Used by the "Load Ready Matches" button — instant DB query, no scraping.
+   * @param {string} date - Date in YYYY-MM-DD format
+   * @returns {Promise<Array>} Array of synced match objects
    */
-  async saveMatches(matchesArray) {
+  async getSyncedMatchesByDate(date) {
     try {
-      const savedMatches = [];
+      const matches = await db.Match.findAll({
+        where: { match_date: date, is_synced: true },
+        include: [
+          {
+            model: db.Team,
+            as: "homeTeam",
+            attributes: ["id", "name"],
+            required: false,
+          },
+          {
+            model: db.Team,
+            as: "awayTeam",
+            attributes: ["id", "name"],
+            required: false,
+          },
+        ],
+        order: [["match_time", "ASC"]],
+      });
 
-      for (const matchData of matchesArray) {
-        // Get or create home team
-        const homeTeam = await this.getOrCreateTeam(matchData.homeTeam);
-        // Get or create away team
-        const awayTeam = await this.getOrCreateTeam(matchData.awayTeam);
-
-        // Prepare data with team IDs
-        const dbMatchData = {
-          flashscore_id: matchData.flashscoreId,
-          match_date: matchData.matchDate,
-          match_time: matchData.matchTime,
-          home_team_id: homeTeam.id,
-          away_team_id: awayTeam.id,
-          league_name: matchData.leagueName || matchData.league_name,
-          is_synced: matchData.isSynced || false,
-          flashscore_url: matchData.matchUrl || null,
-          odds_home: matchData.oddsHome ?? null,
-          odds_draw: matchData.oddsDraw ?? null,
-          odds_away: matchData.oddsAway ?? null,
-        };
-
-        const [match, created] = await db.Match.findOrCreate({
-          where: { flashscore_id: dbMatchData.flashscore_id },
-          defaults: dbMatchData,
-        });
-
-        // If match already exists and data changed, update it
-        if (!created) {
-          await match.update(dbMatchData);
-        }
-
-        // Reload with associations
-        await match.reload({
-          include: [
-            { model: db.Team, as: "homeTeam", attributes: ["id", "name"] },
-            { model: db.Team, as: "awayTeam", attributes: ["id", "name"] },
-          ],
-        });
-
-        // Transform for return
+      return matches.map((match) => {
         const data = match.toJSON();
-        savedMatches.push({
+        return {
           id: data.id,
           flashscoreId: data.flashscore_id,
           matchDate: data.match_date,
@@ -141,15 +120,102 @@ class DatabaseService {
           homeTeamId: data.home_team_id,
           awayTeamId: data.away_team_id,
           leagueName: data.league_name,
-          isSynced: data.is_synced,
-          h2hScraped: data.is_synced,
+          isSynced: true,
+          h2hScraped: true,
           flashscoreUrl: data.flashscore_url || null,
           oddsHome: data.odds_home != null ? parseFloat(data.odds_home) : null,
           oddsDraw: data.odds_draw != null ? parseFloat(data.odds_draw) : null,
           oddsAway: data.odds_away != null ? parseFloat(data.odds_away) : null,
-          status: "scheduled", // Default status for scraped matches
-        });
-      }
+          status: "scheduled",
+        };
+      });
+    } catch (error) {
+      console.error("Error fetching synced matches by date:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Save or update multiple matches (converts team names to IDs)
+   * @param {Array} matchesArray - Array of match objects with team names
+   * @returns {Promise<Array>} Array of saved match instances with team names
+   */
+  async saveMatches(matchesArray) {
+    try {
+      // Collect all unique team names across the batch and resolve them in parallel.
+      // A 50-match batch previously ran 100+ sequential DB queries; now it's one
+      // parallel fan-out then a bulk match upsert.
+      const allTeamNames = [
+        ...new Set(matchesArray.flatMap((m) => [m.homeTeam, m.awayTeam])),
+      ];
+      const teamInstances = await Promise.all(
+        allTeamNames.map((name) => this.getOrCreateTeam(name)),
+      );
+      const teamMap = new Map(
+        allTeamNames.map((name, i) => [name, teamInstances[i]]),
+      );
+
+      // Save all matches in parallel using the pre-built team map
+      const savedMatches = await Promise.all(
+        matchesArray.map(async (matchData) => {
+          const homeTeam = teamMap.get(matchData.homeTeam);
+          const awayTeam = teamMap.get(matchData.awayTeam);
+
+          // Prepare data with team IDs
+          const dbMatchData = {
+            flashscore_id: matchData.flashscoreId,
+            match_date: matchData.matchDate,
+            match_time: matchData.matchTime,
+            home_team_id: homeTeam.id,
+            away_team_id: awayTeam.id,
+            league_name: matchData.leagueName || matchData.league_name,
+            is_synced: matchData.isSynced || false,
+            flashscore_url: matchData.matchUrl || null,
+            odds_home: matchData.oddsHome ?? null,
+            odds_draw: matchData.oddsDraw ?? null,
+            odds_away: matchData.oddsAway ?? null,
+          };
+
+          const [match, created] = await db.Match.findOrCreate({
+            where: { flashscore_id: dbMatchData.flashscore_id },
+            defaults: dbMatchData,
+          });
+
+          if (!created) {
+            await match.update(dbMatchData);
+          }
+
+          await match.reload({
+            include: [
+              { model: db.Team, as: "homeTeam", attributes: ["id", "name"] },
+              { model: db.Team, as: "awayTeam", attributes: ["id", "name"] },
+            ],
+          });
+
+          const data = match.toJSON();
+          return {
+            id: data.id,
+            flashscoreId: data.flashscore_id,
+            matchDate: data.match_date,
+            matchTime: data.match_time,
+            homeTeam: data.homeTeam?.name || "Unknown",
+            awayTeam: data.awayTeam?.name || "Unknown",
+            homeTeamId: data.home_team_id,
+            awayTeamId: data.away_team_id,
+            leagueName: data.league_name,
+            isSynced: data.is_synced,
+            h2hScraped: data.is_synced,
+            flashscoreUrl: data.flashscore_url || null,
+            oddsHome:
+              data.odds_home != null ? parseFloat(data.odds_home) : null,
+            oddsDraw:
+              data.odds_draw != null ? parseFloat(data.odds_draw) : null,
+            oddsAway:
+              data.odds_away != null ? parseFloat(data.odds_away) : null,
+            status: "scheduled",
+          };
+        }),
+      );
 
       return savedMatches;
     } catch (error) {
@@ -235,11 +301,20 @@ class DatabaseService {
 
       const recordsToInsert = [];
 
+      // Resolve all unique team names in parallel
+      const allTeamNames = [
+        ...new Set(h2hArray.flatMap((h) => [h.homeTeam, h.awayTeam])),
+      ];
+      const teamInstances = await Promise.all(
+        allTeamNames.map((name) => this.getOrCreateTeam(name)),
+      );
+      const teamMap = new Map(
+        allTeamNames.map((name, i) => [name, teamInstances[i]]),
+      );
+
       for (const h2hData of h2hArray) {
-        // Get or create home team
-        const homeTeam = await this.getOrCreateTeam(h2hData.homeTeam);
-        // Get or create away team
-        const awayTeam = await this.getOrCreateTeam(h2hData.awayTeam);
+        const homeTeam = teamMap.get(h2hData.homeTeam);
+        const awayTeam = teamMap.get(h2hData.awayTeam);
 
         recordsToInsert.push({
           parent_match_id: h2hData.parentMatchId,

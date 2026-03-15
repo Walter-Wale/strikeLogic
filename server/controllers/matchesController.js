@@ -7,6 +7,46 @@ const ScraperService = require("../services/ScraperService");
 const DatabaseService = require("../services/DatabaseService");
 
 /**
+ * Get only synced (H2H-ready) matches for a date — no scraping triggered.
+ * @route GET /matches/synced?date=YYYY-MM-DD
+ */
+async function getSyncedMatches(req, res) {
+  try {
+    const { date } = req.query;
+
+    if (!date) {
+      return res.status(400).json({
+        success: false,
+        error: "Date parameter is required (format: YYYY-MM-DD)",
+      });
+    }
+
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(date)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid date format. Use YYYY-MM-DD",
+      });
+    }
+
+    const dbService = new DatabaseService();
+    const matches = await dbService.getSyncedMatchesByDate(date);
+
+    return res.json({
+      success: true,
+      data: matches,
+      count: matches.length,
+    });
+  } catch (error) {
+    console.error("Error fetching synced matches:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to fetch synced matches",
+    });
+  }
+}
+
+/**
  * Get matches by date with optional league filtering
  * @route GET /matches?date=YYYY-MM-DD&leagues[]=LeagueName
  */
@@ -198,4 +238,5 @@ module.exports = {
   getMatchesByDate,
   getMatchById,
   scrapeH2HByLeagues,
+  getSyncedMatches,
 };

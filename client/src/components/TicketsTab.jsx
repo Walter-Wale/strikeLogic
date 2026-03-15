@@ -142,7 +142,7 @@ function TicketCard({ matches, idx }) {
   );
 }
 
-export default function TicketsTab({ predictions = [], matchDate }) {
+export default function TicketsTab({ predictions = [], matchDate, onSaved }) {
   const [teamsPerTicket, setTeamsPerTicket] = useState(5);
   const [maxAppearances, setMaxAppearances] = useState(1);
   const [multiCount, setMultiCount] = useState(10);
@@ -183,6 +183,7 @@ export default function TicketsTab({ predictions = [], matchDate }) {
         message: `${tickets.length} ticket${tickets.length !== 1 ? "s" : ""} saved successfully!`,
         severity: "success",
       });
+      if (onSaved) onSaved();
     } catch (err) {
       setSnackbar({
         open: true,

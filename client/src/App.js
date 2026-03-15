@@ -29,9 +29,12 @@ import PredictionTable from "./components/PredictionTable";
 // Import services
 import {
   fetchMatchesByDate,
+  fetchSyncedMatches,
+  fetchMatchById,
   scrapeH2HByLeagues,
   fetchPredictions,
 } from "./services/apiService";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import {
   initializeSocket,
   disconnect,
@@ -79,13 +82,33 @@ function App() {
   useEffect(() => {
     initializeSocket();
 
-    // Real-time H2H sync: mark individual matches as synced when server notifies us
+    // Real-time H2H sync: mark individual matches as synced when server notifies us.
+    // If the match isn't in state yet (e.g. newly scraped after Load Ready Matches),
+    // fetch it from the server and append it to the list.
     const unsubscribeH2H = subscribeToH2HSynced(({ matchId }) => {
-      setAllMatches((prev) =>
-        prev.map((m) =>
-          m.id === matchId ? { ...m, h2hScraped: true, isSynced: true } : m,
-        ),
-      );
+      setAllMatches((prev) => {
+        const exists = prev.some((m) => m.id === matchId);
+        if (exists) {
+          return prev.map((m) =>
+            m.id === matchId ? { ...m, h2hScraped: true, isSynced: true } : m,
+          );
+        }
+        // Match not yet in table — fetch and append
+        fetchMatchById(matchId)
+          .then((res) => {
+            if (res.success && res.data) {
+              setAllMatches((latest) => {
+                if (latest.some((m) => m.id === matchId)) return latest;
+                return [
+                  ...latest,
+                  { ...res.data, h2hScraped: true, isSynced: true },
+                ];
+              });
+            }
+          })
+          .catch(() => {});
+        return prev;
+      });
     });
 
     // Detect H2H chain completion: enable the Run Predictions button
@@ -148,6 +171,29 @@ function App() {
 
   // REMOVED: Auto-refresh was causing excessive database queries
   // User can manually refresh by changing date or clicking "Scrape Matches"
+
+  // Handler: Load only already-synced (H2H complete) matches from DB — no scraping
+  const handleLoadReadyMatches = async () => {
+    setLoading(true);
+    setError(null);
+    setAllMatches([]);
+    try {
+      const formattedDate = selectedDate.format("YYYY-MM-DD");
+      const response = await fetchSyncedMatches(formattedDate);
+      if (response.success) {
+        setAllMatches(response.data || []);
+        if ((response.count || 0) > 0) {
+          setChainCompleteDetected(true);
+        }
+      } else {
+        setError(response.error || "Failed to load ready matches");
+      }
+    } catch (err) {
+      setError(err.message || "An error occurred");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Handler: Fetch all matches for the date (no league filter — filtering is applied client-side)
   const handleFetchMatches = async () => {
@@ -264,6 +310,18 @@ function App() {
                 onChange={setSelectedLeagues}
                 matches={allMatches}
               />
+            </Grid>
+            <Grid item xs={12}>
+              <Button
+                variant="outlined"
+                color="success"
+                size="large"
+                onClick={handleLoadReadyMatches}
+                disabled={loading}
+                startIcon={<CheckCircleIcon />}
+              >
+                Load Ready Matches (H2H Complete)
+              </Button>
             </Grid>
           </Grid>
           {loading && (

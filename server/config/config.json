@@ -1,4 +1,14 @@
 {
+  "scraping": {
+    "delays": {
+      "fixturePageLoad": 800,
+      "oddsTabWait": 800,
+      "h2hBetweenMatch": 200,
+      "jitterMax": 400
+    },
+    "h2hConcurrency": 1,
+    "navTimeout": 60000
+  },
   "development": {
     "username": "root",
     "password": "",

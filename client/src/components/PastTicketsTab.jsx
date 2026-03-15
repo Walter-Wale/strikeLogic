@@ -131,7 +131,7 @@ function formatSavedAt(savedAt) {
   });
 }
 
-export default function PastTicketsTab() {
+export default function PastTicketsTab({ lastSavedAt }) {
   const [batches, setBatches] = useState([]);
   const [loadingList, setLoadingList] = useState(true);
   const [selectedBatch, setSelectedBatch] = useState(null); // { batch, tickets }
@@ -144,7 +144,7 @@ export default function PastTicketsTab() {
 
   useEffect(() => {
     loadBatches();
-  }, []);
+  }, [lastSavedAt]);
 
   async function loadBatches() {
     setLoadingList(true);

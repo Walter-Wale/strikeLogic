@@ -88,6 +88,25 @@ export async function fetchH2HData(matchId, flashscoreId) {
 }
 
 /**
+ * Fetch only synced (H2H-ready) matches for a date — no scraping triggered.
+ * @param {string} date - Date in YYYY-MM-DD format
+ * @returns {Promise<Object>} Response with synced matches array
+ */
+export async function fetchSyncedMatches(date) {
+  try {
+    const response = await apiClient.get("/matches/synced", {
+      params: { date },
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching synced matches:", error);
+    const errorMessage =
+      error.response?.data?.error || "Failed to fetch synced matches.";
+    throw new Error(errorMessage);
+  }
+}
+
+/**
  * Trigger H2H scraping for specific leagues
  * @param {string} date - Date in YYYY-MM-DD format
  * @param {Array<string>} leagues - Array of league names

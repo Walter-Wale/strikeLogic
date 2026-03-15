@@ -11,7 +11,12 @@ const selectors = require("../../shared/selectors");
 const DataCleaner = require("../utils/DataCleaner");
 const DatabaseService = require("./DatabaseService");
 const { emitLog } = require("../utils/socketLogger");
-const { delay, DEFAULT_SCRAPE_DELAY } = require("../utils/delay");
+const {
+  delay,
+  DEFAULT_SCRAPE_DELAY,
+  delayWithJitter,
+} = require("../utils/delay");
+const scrapingConfig = require("../config/config.json").scraping;
 const { ensureMinimumMatches } = require("../utils/expandMatches");
 
 // Apply stealth plugin to avoid detection
@@ -157,14 +162,14 @@ class ScraperService {
         timeout: 60000,
       });
 
-      await delay(2000); // Wait like a human would
+      await delayWithJitter(600, scrapingConfig.delays.jitterMax); // Wait like a human would
 
       // Simulate human-like behavior: scroll a bit
       await page.evaluate(() => {
         window.scrollTo(0, 200);
       });
 
-      await delay(1000);
+      await delayWithJitter(300, 200);
 
       emitLog(this.io, `Navigating to FlashScore for date ${date}...`, "info");
 
@@ -180,7 +185,10 @@ class ScraperService {
         timeout: 60000,
       });
 
-      await delay(3000); // Give time for JS to load matches
+      await delayWithJitter(
+        scrapingConfig.delays.fixturePageLoad,
+        scrapingConfig.delays.jitterMax,
+      ); // Give time for JS to load matches
 
       // Check if page loaded successfully
       const pageText = await page.evaluate(() => document.body.innerText);
@@ -207,7 +215,10 @@ class ScraperService {
       }
 
       // Wait for matches to load
-      await delay(DEFAULT_SCRAPE_DELAY);
+      await delayWithJitter(
+        scrapingConfig.delays.fixturePageLoad,
+        scrapingConfig.delays.jitterMax,
+      );
 
       // DEBUG: Get page info
       const pageTitle = await page.title();
@@ -232,7 +243,7 @@ class ScraperService {
               `✓ Clicked cookie consent button: ${selector}`,
               "info",
             );
-            await delay(1000);
+            await delayWithJitter(400, 200);
             break;
           }
         }
@@ -521,16 +532,14 @@ class ScraperService {
       }
 
       emitLog(this.io, `🔗 H2H URL: ${urlBase}`, "info");
-      // networkidle2 waits until ≤2 active connections for 500ms — by that point
-      // H2H sections are either rendered or they simply don't exist for this match.
       await page.goto(urlBase, {
-        waitUntil: "networkidle2",
-        timeout: 120000,
+        waitUntil: "domcontentloaded",
+        timeout: scrapingConfig.navTimeout || 60000,
       });
 
-      // Short fallback: if sections weren't present at networkidle2, they won't appear.
+      // Wait for H2H sections to render after JS execution
       await page
-        .waitForSelector(".h2h__section", { timeout: 5000 })
+        .waitForSelector(".h2h__section", { timeout: 15000 })
         .catch(() => null);
 
       const sectionCount = await page.$$eval(
@@ -811,7 +820,8 @@ class ScraperService {
 
       // Iterate through each section and identify by header text
       for (let i = 0; i < sectionCount; i++) {
-        // Dynamically determine section type by reading header text
+        // Single evaluate to identify section type AND detect show-more button —
+        // eliminates one evaluateHandle + asElement round-trip per section.
         const sectionInfo = await page.evaluate(
           (containerSel, index, home, away) => {
             const sections = document.querySelectorAll(containerSel);
@@ -862,7 +872,12 @@ class ScraperService {
               label = `${away} recent form`;
             }
 
-            return { sectionType, label, headerText };
+            // Detect show-more button in the same pass (saves an evaluateHandle round-trip)
+            const hasShowMore = !!section.querySelector(
+              "button.wclButtonLink--h2h",
+            );
+
+            return { sectionType, label, headerText, hasShowMore };
           },
           selectors.H2H_SELECTORS.CONTAINERS,
           i,
@@ -881,33 +896,28 @@ class ScraperService {
 
         const { sectionType, label } = sectionInfo;
 
-        // Click "Show more" button (verified selector: button.wclButtonLink--h2h)
-        // Uses Puppeteer's element handle so it auto-scrolls into view before clicking
-        try {
-          const showMoreBtn = await page.evaluateHandle(
-            (containerSel, index) => {
-              const sections = document.querySelectorAll(containerSel);
-              if (index >= sections.length) return null;
-              const section = sections[index];
-              return section.querySelector("button.wclButtonLink--h2h") || null;
-            },
-            selectors.H2H_SELECTORS.CONTAINERS,
-            i,
-          );
-
-          const btnElement = showMoreBtn.asElement();
-          if (btnElement) {
-            // Scroll into view so Puppeteer's click() lands correctly
-            await btnElement.evaluate((el) =>
-              el.scrollIntoView({ block: "center" }),
+        // Click "Show more" via a direct evaluate — no evaluateHandle needed
+        if (sectionInfo.hasShowMore) {
+          try {
+            await page.evaluate(
+              (containerSel, index) => {
+                const sections = document.querySelectorAll(containerSel);
+                const btn = sections[index]?.querySelector(
+                  "button.wclButtonLink--h2h",
+                );
+                if (btn) {
+                  btn.scrollIntoView({ block: "center" });
+                  btn.click();
+                }
+              },
+              selectors.H2H_SELECTORS.CONTAINERS,
+              i,
             );
-            await new Promise((resolve) => setTimeout(resolve, 300));
-            await btnElement.click();
-            // Wait for new rows to render
-            await new Promise((resolve) => setTimeout(resolve, 1200));
+            // Wait for expanded rows to render
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+          } catch (showMoreError) {
+            // Non-fatal – section may not have a "show more" button
           }
-        } catch (showMoreError) {
-          // Non-fatal – section may not have a "show more" button
         }
 
         emitLog(this.io, `📊 Extracting ${label}...`, "info");
@@ -1222,7 +1232,10 @@ class ScraperService {
         );
       } else {
         // Wait for odds values to render
-        await delay(2500);
+        await delayWithJitter(
+          scrapingConfig.delays.oddsTabWait,
+          scrapingConfig.delays.jitterMax,
+        );
       }
 
       // Always save HTML snapshot for selector verification, even if tab click failed
@@ -1409,42 +1422,59 @@ class ScraperService {
    * @private
    */
   async _navigateH2HPage(page, match) {
-    try {
-      let urlBase;
-      if (match.flashscoreUrl) {
-        let pathname = match.flashscoreUrl;
-        if (pathname.startsWith("http")) {
-          pathname = new URL(pathname).pathname;
-        }
-        pathname = pathname.replace(/\/?$/, "/");
-        urlBase = `https://www.flashscore.com${pathname}h2h/overall/`;
-      } else {
-        urlBase = `https://www.flashscore.com/match/${match.flashscoreId}/#/h2h/overall`;
+    let urlBase;
+    if (match.flashscoreUrl) {
+      let pathname = match.flashscoreUrl;
+      if (pathname.startsWith("http")) {
+        pathname = new URL(pathname).pathname;
       }
-
-      emitLog(this.io, `🔗 H2H URL: ${urlBase}`, "info");
-
-      // networkidle2 waits until ≤2 active connections for 500ms — by that point
-      // H2H sections are either rendered or they simply don't exist for this match.
-      await page.goto(urlBase, {
-        waitUntil: "networkidle2",
-        timeout: 120000,
-      });
-
-      // Short fallback: if sections weren't present at networkidle2, they won't appear.
-      await page
-        .waitForSelector(".h2h__section", { timeout: 5000 })
-        .catch(() => null);
-
-      return true;
-    } catch (err) {
-      emitLog(
-        this.io,
-        `❌ Navigation failed for ${match.homeTeam} vs ${match.awayTeam}: ${err.message}`,
-        "error",
-      );
-      return false;
+      pathname = pathname.replace(/\/?$/, "/");
+      urlBase = `https://www.flashscore.com${pathname}h2h/overall/`;
+    } else {
+      urlBase = `https://www.flashscore.com/match/${match.flashscoreId}/#/h2h/overall`;
     }
+
+    emitLog(this.io, `🔗 H2H URL: ${urlBase}`, "info");
+
+    const navTimeout = scrapingConfig.navTimeout || 60000;
+    const maxAttempts = 2;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        if (attempt > 1) {
+          emitLog(
+            this.io,
+            `🔄 Retry ${attempt}/${maxAttempts} for ${match.homeTeam} vs ${match.awayTeam} (waiting 8s...)`,
+            "info",
+          );
+          await delayWithJitter(8000, 2000);
+        }
+
+        await page.goto(urlBase, {
+          waitUntil: "domcontentloaded",
+          timeout: navTimeout,
+        });
+
+        // Wait for H2H sections to render after JS execution
+        await page
+          .waitForSelector(".h2h__section", { timeout: 15000 })
+          .catch(() => null);
+
+        return true;
+      } catch (err) {
+        const isLastAttempt = attempt === maxAttempts;
+        emitLog(
+          this.io,
+          isLastAttempt
+            ? `❌ Navigation failed for ${match.homeTeam} vs ${match.awayTeam}: ${err.message}`
+            : `⚠️ Navigation attempt ${attempt} failed for ${match.homeTeam} vs ${match.awayTeam}: ${err.message}`,
+          isLastAttempt ? "error" : "warning",
+        );
+        if (isLastAttempt) return false;
+      }
+    }
+
+    return false;
   }
 
   /**
@@ -1547,15 +1577,16 @@ class ScraperService {
   }
 
   /**
-   * Single-browser, two-tab ping-pong queue worker.
+   * Multi-tab concurrent queue worker.
    *
-   * One browser is launched for the entire queue — no per-match browser startup.
-   * Two tabs are kept open: while tab A's data is being extracted and saved,
-   * tab B is already navigating to the next match URL.  This hides network
-   * latency behind processing time, which is the biggest win on a slow connection.
+   * One browser is launched for the entire queue with N tabs (configurable via
+   * scraping.h2hConcurrency in config.json, default 3).  Each tab runs as an
+   * independent worker: navigate → extract → save → grab next item from the
+   * shared queue.  Workers drain the queue concurrently so total time scales
+   * roughly as total_matches / concurrency instead of linearly.
    *
    * After the queue drains the browser is closed.  If new items arrive while
-   * the worker is running they are appended and processed without restarting.
+   * the worker is running they are appended and will restart automatically.
    * @private
    */
   async _runH2HQueue() {
@@ -1571,7 +1602,7 @@ class ScraperService {
 
       browser = await puppeteer.launch({
         headless: true,
-        protocolTimeout: 120000,
+        protocolTimeout: 300000,
         args: [
           "--no-sandbox",
           "--disable-setuid-sandbox",
@@ -1580,69 +1611,56 @@ class ScraperService {
         ],
       });
 
-      // Two tabs — ping-pong between them
-      const pageA = await browser.newPage();
-      const pageB = await browser.newPage();
-      await this._setupPage(pageA);
-      await this._setupPage(pageB);
+      const concurrency = scrapingConfig.h2hConcurrency || 2;
 
-      const pages = [pageA, pageB];
-      let activeIdx = 0; // which tab is currently being processed
-
-      // Dequeue first match and start its navigation immediately
-      let currentMatch = this._h2hQueue.shift();
-      let currentNavPromise = this._navigateH2HPage(
-        pages[activeIdx],
-        currentMatch,
+      // Create N pages up-front — each will run as an independent worker
+      const pages = await Promise.all(
+        Array.from({ length: concurrency }, async () => {
+          const p = await browser.newPage();
+          await this._setupPage(p);
+          return p;
+        }),
       );
 
       let processed = 0;
 
-      while (currentMatch) {
-        const nextIdx = 1 - activeIdx;
-        const nextMatch =
-          this._h2hQueue.length > 0 ? this._h2hQueue.shift() : null;
+      // Each worker loops: grab next match → navigate → extract+save → repeat
+      // JS is single-threaded so queue.shift() calls are inherently sequential (no race)
+      const runWorker = async (page) => {
+        while (this._h2hQueue.length > 0) {
+          const match = this._h2hQueue.shift();
+          if (!match) break;
 
-        // Fire navigation for the next match on the idle tab RIGHT NOW —
-        // this runs in parallel with the processing of the current match.
-        let nextNavPromise = null;
-        if (nextMatch) {
+          const matchNum = ++processed;
           emitLog(
             this.io,
-            `⏩ Pre-loading next: ${nextMatch.homeTeam} vs ${nextMatch.awayTeam}`,
+            `⚽ Processing match ${matchNum}: ${match.homeTeam} vs ${match.awayTeam}...`,
             "info",
           );
-          nextNavPromise = this._navigateH2HPage(pages[nextIdx], nextMatch);
+
+          const navOk = await this._navigateH2HPage(page, match);
+          if (navOk) {
+            await this._processH2HPage(page, match);
+          } else {
+            emitLog(
+              this.io,
+              `⚠️ Skipped ${match.homeTeam} vs ${match.awayTeam} (navigation failed)`,
+              "warning",
+            );
+          }
+
+          // Politeness delay between requests on this worker
+          if (this._h2hQueue.length > 0) {
+            await delayWithJitter(
+              scrapingConfig.delays.h2hBetweenMatch,
+              scrapingConfig.delays.jitterMax,
+            );
+          }
         }
+      };
 
-        emitLog(
-          this.io,
-          `⚽ Processing match ${++processed}: ${currentMatch.homeTeam} vs ${currentMatch.awayTeam}...`,
-          "info",
-        );
-
-        // Wait for current navigation, then extract + save
-        const navOk = await currentNavPromise;
-        if (navOk) {
-          await this._processH2HPage(pages[activeIdx], currentMatch);
-        } else {
-          emitLog(
-            this.io,
-            `⚠️ Skipped ${currentMatch.homeTeam} vs ${currentMatch.awayTeam} (navigation failed)`,
-            "warning",
-          );
-        }
-
-        // 1-second politeness delay — short because reusing browser cuts overhead
-        if (nextMatch) {
-          await delay(1000);
-        }
-
-        // Swap tabs and advance
-        currentMatch = nextMatch;
-        currentNavPromise = nextNavPromise;
-        activeIdx = nextIdx;
-      }
+      // Run all workers concurrently — they drain from the shared queue
+      await Promise.all(pages.map((page) => runWorker(page)));
 
       emitLog(
         this.io,
