@@ -295,45 +295,10 @@ async function scrapeH2HViaFeed(match, io, dbService) {
       return { success: false, count: 0 };
     }
 
-    // Classify each record into a section based on team name presence
-    const homeLower = match.homeTeam.toLowerCase();
-    const awayLower = match.awayTeam.toLowerCase();
-
-    // Word-boundary-aware name match: prevents "van" matching inside "yerevan" etc.
-    const teamNameMatches = (dbName, feedName) => {
-      if (dbName === feedName) return true;
-      const escDb = dbName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const escFeed = feedName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      return (
-        new RegExp(`\\b${escDb}\\b`).test(feedName) ||
-        new RegExp(`\\b${escFeed}\\b`).test(dbName)
-      );
-    };
-
+    // The parser already tagged each record with its sectionType (DIRECT_H2H /
+    // HOME_FORM / AWAY_FORM) based on the feed's own section boundaries.
+    // No team-name matching needed — avoids nickname/alias mismatches entirely.
     const allH2HData = parsed.map((entry) => {
-      const hLower = entry.homeTeam.toLowerCase();
-      const aLower = entry.awayTeam.toLowerCase();
-
-      const hasHome =
-        teamNameMatches(homeLower, hLower) ||
-        teamNameMatches(homeLower, aLower);
-
-      const hasAway =
-        teamNameMatches(awayLower, hLower) ||
-        teamNameMatches(awayLower, aLower);
-
-      let sectionType;
-      if (hasHome && hasAway) {
-        sectionType = "DIRECT_H2H";
-      } else if (hasHome) {
-        sectionType = "HOME_FORM";
-      } else if (hasAway) {
-        sectionType = "AWAY_FORM";
-      } else {
-        return null; // discard records that don't match either team
-      }
-
-      // Convert Unix timestamp to YYYY-MM-DD
       let matchDate = null;
       if (entry.timestamp) {
         const ts = parseInt(entry.timestamp, 10);
@@ -344,7 +309,7 @@ async function scrapeH2HViaFeed(match, io, dbService) {
 
       return {
         parentMatchId: match.id,
-        sectionType,
+        sectionType: entry.sectionType,
         matchDate,
         homeTeam: entry.homeTeam,
         awayTeam: entry.awayTeam,
