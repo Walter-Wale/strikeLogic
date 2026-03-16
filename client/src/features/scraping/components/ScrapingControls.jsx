@@ -6,6 +6,8 @@ import {
   Button,
   Box,
   CircularProgress,
+  ToggleButton,
+  ToggleButtonGroup,
 } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import DatePicker from "../../../components/common/DatePicker";
@@ -20,6 +22,8 @@ function ScrapingControls({
   loading,
   onLoadReady,
   onStartH2H,
+  scrapeMode,
+  onScrapeModeChange,
 }) {
   return (
     <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
@@ -46,7 +50,26 @@ function ScrapingControls({
           />
         </Grid>
         <Grid item xs={12}>
-          <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+          <Box
+            sx={{
+              display: "flex",
+              gap: 2,
+              flexWrap: "wrap",
+              alignItems: "center",
+            }}
+          >
+            <ToggleButtonGroup
+              value={scrapeMode}
+              exclusive
+              onChange={(_, value) => {
+                if (value) onScrapeModeChange(value);
+              }}
+              size="small"
+            >
+              <ToggleButton value="feed">⚡ Fast</ToggleButton>
+              <ToggleButton value="auto">🔁 Auto</ToggleButton>
+              <ToggleButton value="puppeteer">🧠 Safe</ToggleButton>
+            </ToggleButtonGroup>
             <Button
               variant="contained"
               color="primary"

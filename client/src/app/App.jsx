@@ -32,6 +32,7 @@ function App() {
   // UI state managed at the top level
   const [selectedDate, setSelectedDate] = useState(dayjs());
   const [selectedLeagues, setSelectedLeagues] = useState([]);
+  const [scrapeMode, setScrapeMode] = useState("auto");
 
   // H2H Modal state
   const [h2hModalOpen, setH2hModalOpen] = useState(false);
@@ -67,7 +68,11 @@ function App() {
   useH2HSocket(setAllMatches, setChainCompleteDetected);
 
   // Scraping: manual trigger via "Start H2H Analysis" button
-  const { handleStartH2H } = useH2HScraping(selectedDate, selectedLeagues);
+  const { handleStartH2H } = useH2HScraping(
+    selectedDate,
+    selectedLeagues,
+    scrapeMode,
+  );
 
   // Handler: Analyze match (open H2H modal)
   const handleAnalyzeClick = (matchId, flashscoreId, homeTeam, awayTeam) => {
@@ -102,6 +107,8 @@ function App() {
         loading={loading}
         onLoadReady={handleLoadReadyMatches}
         onStartH2H={handleStartH2H}
+        scrapeMode={scrapeMode}
+        onScrapeModeChange={setScrapeMode}
       />
 
       {/* Error Alert */}

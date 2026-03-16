@@ -7,6 +7,8 @@ const {
 const { captureErrorScreenshot } = require("./screenshotService");
 const { emitLog } = require("../../utils/socketLogger");
 const scrapingConfig = require("../../config/config.json").scraping;
+const { fetchH2HFeed } = require("./feed/h2hFeedFetcher");
+const { parseH2HFeed } = require("./feed/h2hFeedParser");
 
 /**
  * Scrape H2H and form data for a specific match
@@ -255,4 +257,167 @@ async function scrapeH2HAndForm(matchId, flashscoreId, io, dbService) {
   }
 }
 
-module.exports = { scrapeH2HAndForm };
+/**
+ * Scrape H2H data via the FlashScore feed API (fast, no browser needed).
+ * Classifies each parsed record into HOME_FORM, AWAY_FORM or DIRECT_H2H
+ * based on team name matching against the parent match.
+ * @param {Object} match - Match object from the database
+ * @param {SocketIO.Server} io
+ * @param {DatabaseService} dbService
+ * @returns {Promise<Object>} { success, count }
+ */
+async function scrapeH2HViaFeed(match, io, dbService) {
+  try {
+    if (match.h2hScraped) {
+      emitLog(
+        io,
+        `✓ H2H already synced: ${match.homeTeam} vs ${match.awayTeam}`,
+        "success",
+      );
+      return { success: true, count: 0, skipped: true };
+    }
+
+    emitLog(
+      io,
+      `⚡ Feed fetch: ${match.homeTeam} vs ${match.awayTeam}...`,
+      "info",
+    );
+
+    const rawText = await fetchH2HFeed(match.flashscoreId);
+    const parsed = parseH2HFeed(rawText);
+
+    if (parsed.length === 0) {
+      emitLog(
+        io,
+        `⚠️ Feed returned no H2H data for ${match.homeTeam} vs ${match.awayTeam}`,
+        "warning",
+      );
+      return { success: false, count: 0 };
+    }
+
+    // Classify each record into a section based on team name presence
+    const homeLower = match.homeTeam.toLowerCase();
+    const awayLower = match.awayTeam.toLowerCase();
+
+    const allH2HData = parsed.map((entry) => {
+      const hLower = entry.homeTeam.toLowerCase();
+      const aLower = entry.awayTeam.toLowerCase();
+
+      const hasHome =
+        hLower === homeLower ||
+        aLower === homeLower ||
+        hLower.includes(homeLower) ||
+        aLower.includes(homeLower) ||
+        homeLower.includes(hLower) ||
+        homeLower.includes(aLower);
+
+      const hasAway =
+        hLower === awayLower ||
+        aLower === awayLower ||
+        hLower.includes(awayLower) ||
+        aLower.includes(awayLower) ||
+        awayLower.includes(hLower) ||
+        awayLower.includes(aLower);
+
+      let sectionType;
+      if (hasHome && hasAway) {
+        sectionType = "DIRECT_H2H";
+      } else if (hasHome) {
+        sectionType = "HOME_FORM";
+      } else if (hasAway) {
+        sectionType = "AWAY_FORM";
+      } else {
+        sectionType = "DIRECT_H2H"; // fallback
+      }
+
+      // Convert Unix timestamp to YYYY-MM-DD
+      let matchDate = null;
+      if (entry.timestamp) {
+        const ts = parseInt(entry.timestamp, 10);
+        if (!isNaN(ts)) {
+          matchDate = new Date(ts * 1000).toISOString().split("T")[0];
+        }
+      }
+
+      return {
+        parentMatchId: match.id,
+        sectionType,
+        matchDate,
+        homeTeam: entry.homeTeam,
+        awayTeam: entry.awayTeam,
+        homeScore: entry.homeGoals,
+        awayScore: entry.awayGoals,
+        competition: entry.competition,
+      };
+    });
+
+    const homeCount = allH2HData.filter(
+      (d) => d.sectionType === "HOME_FORM",
+    ).length;
+    const awayCount = allH2HData.filter(
+      (d) => d.sectionType === "AWAY_FORM",
+    ).length;
+    const directCount = allH2HData.filter(
+      (d) => d.sectionType === "DIRECT_H2H",
+    ).length;
+
+    emitLog(
+      io,
+      `💾 Feed: Saving ${allH2HData.length} records (Home: ${homeCount}, Away: ${awayCount}, Direct: ${directCount})...`,
+      "info",
+    );
+
+    await dbService.saveH2HData(allH2HData);
+    await dbService.markH2HScraped(match.id);
+
+    if (io) {
+      io.emit("h2h-synced", { matchId: match.id });
+    }
+
+    emitLog(
+      io,
+      `✓ H2H Synced (feed): ${match.homeTeam} vs ${match.awayTeam} (${allH2HData.length} records)`,
+      "success",
+    );
+
+    return { success: true, count: allH2HData.length };
+  } catch (error) {
+    emitLog(
+      io,
+      `⚠️ Feed scrape failed for ${match.homeTeam} vs ${match.awayTeam}: ${error.message}`,
+      "warning",
+    );
+    return { success: false, count: 0, error: error.message };
+  }
+}
+
+/**
+ * Scrape H2H with selectable mode.
+ * @param {Object} match - Match object from the database
+ * @param {SocketIO.Server} io
+ * @param {DatabaseService} dbService
+ * @param {"feed"|"puppeteer"|"auto"} mode
+ * @returns {Promise<Object>} { success, count }
+ */
+async function scrapeH2H(match, io, dbService, mode = "auto") {
+  if (mode === "feed") {
+    return scrapeH2HViaFeed(match, io, dbService);
+  }
+
+  if (mode === "puppeteer") {
+    return scrapeH2HAndForm(match.id, match.flashscoreId, io, dbService);
+  }
+
+  // auto: try feed first, fall back to Puppeteer
+  const feedResult = await scrapeH2HViaFeed(match, io, dbService);
+  if (feedResult.success) return feedResult;
+
+  emitLog(
+    io,
+    `🔁 Feed failed, falling back to Puppeteer for ${match.homeTeam} vs ${match.awayTeam}...`,
+    "info",
+  );
+  return scrapeH2HAndForm(match.id, match.flashscoreId, io, dbService);
+}
+
+module.exports = { scrapeH2HAndForm, scrapeH2HViaFeed, scrapeH2H };

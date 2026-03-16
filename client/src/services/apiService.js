@@ -112,11 +112,12 @@ export async function fetchSyncedMatches(date) {
  * @param {Array<string>} leagues - Array of league names
  * @returns {Promise<Object>} Response with scraping status
  */
-export async function scrapeH2HByLeagues(date, leagues) {
+export async function scrapeH2HByLeagues(date, leagues, mode = "auto") {
   try {
     const response = await apiClient.post("/matches/scrape-h2h", {
       date,
       leagues,
+      mode,
     });
     return response.data;
   } catch (error) {

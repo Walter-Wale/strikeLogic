@@ -1,5 +1,6 @@
 const { launchH2HQueueBrowser, setupH2HPage } = require("./browser");
 const { navigateH2HPage, processH2HPage } = require("./h2hNavigator");
+const { scrapeH2H } = require("./h2hScraper");
 const { emitLog } = require("../../utils/socketLogger");
 const { delayWithJitter } = require("../../utils/delay");
 const scrapingConfig = require("../../config/config.json").scraping;
@@ -7,6 +8,7 @@ const scrapingConfig = require("../../config/config.json").scraping;
 // Single global queue — all leagues share one sequential worker
 const _h2hQueue = [];
 let _queueRunning = false;
+let _queueMode = "auto"; // current scraping mode for the active worker
 
 /**
  * AUTOMATED WORKFLOW: Add matches to the global H2H queue.
@@ -18,9 +20,10 @@ let _queueRunning = false;
  * @param {Array} matches - Array of match objects
  * @param {SocketIO.Server} io
  * @param {DatabaseService} dbService
+ * @param {"feed"|"puppeteer"|"auto"} [mode="auto"] - Scraping mode
  * @returns {Promise<void>}
  */
-async function autoChainH2HScraping(matches, io, dbService) {
+async function autoChainH2HScraping(matches, io, dbService, mode = "auto") {
   try {
     const unscrapedMatches = matches.filter((m) => !m.h2hScraped);
 
@@ -47,9 +50,10 @@ async function autoChainH2HScraping(matches, io, dbService) {
     }
 
     _h2hQueue.push(...newMatches);
+    _queueMode = mode;
     emitLog(
       io,
-      `📥 Added ${newMatches.length} match(es) to H2H queue (total queued: ${_h2hQueue.length})`,
+      `📥 Added ${newMatches.length} match(es) to H2H queue [${mode}] (total queued: ${_h2hQueue.length})`,
       "info",
     );
 
@@ -66,7 +70,13 @@ async function autoChainH2HScraping(matches, io, dbService) {
     // Set flag SYNCHRONOUSLY before first await so no second league request
     // can slip through and launch a second parallel worker.
     _queueRunning = true;
-    runH2HQueue(io, dbService).catch((err) => {
+
+    const runner =
+      mode === "puppeteer"
+        ? runH2HQueue(io, dbService)
+        : runH2HFeedQueue(io, dbService, mode);
+
+    runner.catch((err) => {
       console.error("H2H queue worker crashed:", err);
       _queueRunning = false;
     });
@@ -179,4 +189,75 @@ async function runH2HQueue(io, dbService) {
   }
 }
 
-module.exports = { autoChainH2HScraping, runH2HQueue };
+/**
+ * Feed-based concurrent queue worker.
+ * Processes matches using the feed API with limited concurrency (default 4).
+ * Falls back to Puppeteer per-match when mode is "auto" and the feed fails.
+ * @param {SocketIO.Server} io
+ * @param {DatabaseService} dbService
+ * @param {"feed"|"auto"} mode
+ */
+async function runH2HFeedQueue(io, dbService, mode) {
+  const CONCURRENCY = 4;
+
+  try {
+    emitLog(
+      io,
+      `⚡ Starting H2H feed worker [${mode}] (${_h2hQueue.length} match(es), concurrency: ${CONCURRENCY})...`,
+      "info",
+    );
+
+    let processed = 0;
+
+    while (_h2hQueue.length > 0) {
+      // Take up to CONCURRENCY items from the front of the queue
+      const batch = _h2hQueue.splice(0, CONCURRENCY);
+
+      const results = await Promise.all(
+        batch.map(async (match) => {
+          const matchNum = ++processed;
+          emitLog(
+            io,
+            `⚡ [${matchNum}] ${match.homeTeam} vs ${match.awayTeam}...`,
+            "info",
+          );
+          return scrapeH2H(match, io, dbService, mode);
+        }),
+      );
+
+      const succeeded = results.filter((r) => r.success).length;
+      emitLog(
+        io,
+        `✓ Batch done: ${succeeded}/${batch.length} succeeded`,
+        succeeded === batch.length ? "success" : "warning",
+      );
+    }
+
+    emitLog(
+      io,
+      `🎉 H2H feed queue complete! Processed ${processed} match(es).`,
+      "success",
+    );
+  } catch (error) {
+    emitLog(io, `✗ H2H feed queue error: ${error.message}`, "error");
+    console.error("H2H feed queue error:", error);
+  } finally {
+    _queueRunning = false;
+
+    // If new matches arrived while running, restart
+    if (_h2hQueue.length > 0) {
+      emitLog(
+        io,
+        `📥 ${_h2hQueue.length} match(es) arrived during processing — restarting worker...`,
+        "info",
+      );
+      _queueRunning = true;
+      runH2HFeedQueue(io, dbService, _queueMode).catch((err) => {
+        console.error("H2H feed queue restart failed:", err);
+        _queueRunning = false;
+      });
+    }
+  }
+}
+
+module.exports = { autoChainH2HScraping, runH2HQueue, runH2HFeedQueue };

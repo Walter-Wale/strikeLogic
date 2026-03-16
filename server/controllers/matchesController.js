@@ -170,7 +170,11 @@ async function getMatchById(req, res) {
  */
 async function scrapeH2HByLeagues(req, res) {
   try {
-    const { date, leagues } = req.body;
+    const { date, leagues, mode } = req.body;
+
+    // Validate mode (whitelist to prevent injection)
+    const validModes = ["feed", "puppeteer", "auto"];
+    const scrapeMode = validModes.includes(mode) ? mode : "auto";
 
     if (!date) {
       return res.status(400).json({
@@ -216,13 +220,14 @@ async function scrapeH2HByLeagues(req, res) {
     }
 
     // Trigger H2H scraping for filtered matches
-    scraperService._autoChainH2HScraping(matchesToScrape);
+    scraperService._autoChainH2HScraping(matchesToScrape, scrapeMode);
 
     return res.json({
       success: true,
-      message: `Started H2H scraping for ${matchesToScrape.length} matches in ${leagues.join(", ")}`,
+      message: `Started H2H scraping [${scrapeMode}] for ${matchesToScrape.length} matches in ${leagues.join(", ")}`,
       matchCount: matchesToScrape.length,
       leagues: leagues,
+      mode: scrapeMode,
     });
   } catch (error) {
     console.error("Error in scrapeH2HByLeagues:", error);

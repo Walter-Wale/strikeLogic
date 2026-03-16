@@ -36,8 +36,8 @@ class ScraperService {
     return _scrapeH2HAndForm(matchId, flashscoreId, this.io, this.dbService);
   }
 
-  async _autoChainH2HScraping(matches) {
-    return autoChainH2HScraping(matches, this.io, this.dbService);
+  async _autoChainH2HScraping(matches, mode = "auto") {
+    return autoChainH2HScraping(matches, this.io, this.dbService, mode);
   }
 }
 
