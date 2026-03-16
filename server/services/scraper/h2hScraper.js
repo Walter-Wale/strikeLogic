@@ -299,25 +299,28 @@ async function scrapeH2HViaFeed(match, io, dbService) {
     const homeLower = match.homeTeam.toLowerCase();
     const awayLower = match.awayTeam.toLowerCase();
 
+    // Word-boundary-aware name match: prevents "van" matching inside "yerevan" etc.
+    const teamNameMatches = (dbName, feedName) => {
+      if (dbName === feedName) return true;
+      const escDb = dbName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const escFeed = feedName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return (
+        new RegExp(`\\b${escDb}\\b`).test(feedName) ||
+        new RegExp(`\\b${escFeed}\\b`).test(dbName)
+      );
+    };
+
     const allH2HData = parsed.map((entry) => {
       const hLower = entry.homeTeam.toLowerCase();
       const aLower = entry.awayTeam.toLowerCase();
 
       const hasHome =
-        hLower === homeLower ||
-        aLower === homeLower ||
-        hLower.includes(homeLower) ||
-        aLower.includes(homeLower) ||
-        homeLower.includes(hLower) ||
-        homeLower.includes(aLower);
+        teamNameMatches(homeLower, hLower) ||
+        teamNameMatches(homeLower, aLower);
 
       const hasAway =
-        hLower === awayLower ||
-        aLower === awayLower ||
-        hLower.includes(awayLower) ||
-        aLower.includes(awayLower) ||
-        awayLower.includes(hLower) ||
-        awayLower.includes(aLower);
+        teamNameMatches(awayLower, hLower) ||
+        teamNameMatches(awayLower, aLower);
 
       let sectionType;
       if (hasHome && hasAway) {
@@ -327,7 +330,7 @@ async function scrapeH2HViaFeed(match, io, dbService) {
       } else if (hasAway) {
         sectionType = "AWAY_FORM";
       } else {
-        sectionType = "DIRECT_H2H"; // fallback
+        return null; // discard records that don't match either team
       }
 
       // Convert Unix timestamp to YYYY-MM-DD
@@ -351,23 +354,35 @@ async function scrapeH2HViaFeed(match, io, dbService) {
       };
     });
 
-    const homeCount = allH2HData.filter(
+    // Remove discarded records (neither team matched)
+    const validH2HData = allH2HData.filter(Boolean);
+
+    // Limit each section to 10 records
+    const limitedH2HData = [
+      ...validH2HData.filter((d) => d.sectionType === "HOME_FORM").slice(0, 10),
+      ...validH2HData.filter((d) => d.sectionType === "AWAY_FORM").slice(0, 10),
+      ...validH2HData
+        .filter((d) => d.sectionType === "DIRECT_H2H")
+        .slice(0, 10),
+    ];
+
+    const homeCount = limitedH2HData.filter(
       (d) => d.sectionType === "HOME_FORM",
     ).length;
-    const awayCount = allH2HData.filter(
+    const awayCount = limitedH2HData.filter(
       (d) => d.sectionType === "AWAY_FORM",
     ).length;
-    const directCount = allH2HData.filter(
+    const directCount = limitedH2HData.filter(
       (d) => d.sectionType === "DIRECT_H2H",
     ).length;
 
     emitLog(
       io,
-      `💾 Feed: Saving ${allH2HData.length} records (Home: ${homeCount}, Away: ${awayCount}, Direct: ${directCount})...`,
+      `💾 Feed: Saving ${limitedH2HData.length} records (Home: ${homeCount}, Away: ${awayCount}, Direct: ${directCount})...`,
       "info",
     );
 
-    await dbService.saveH2HData(allH2HData);
+    await dbService.saveH2HData(limitedH2HData);
     await dbService.markH2HScraped(match.id);
 
     if (io) {
@@ -376,11 +391,11 @@ async function scrapeH2HViaFeed(match, io, dbService) {
 
     emitLog(
       io,
-      `✓ H2H Synced (feed): ${match.homeTeam} vs ${match.awayTeam} (${allH2HData.length} records)`,
+      `✓ H2H Synced (feed): ${match.homeTeam} vs ${match.awayTeam} (${limitedH2HData.length} records)`,
       "success",
     );
 
-    return { success: true, count: allH2HData.length };
+    return { success: true, count: limitedH2HData.length };
   } catch (error) {
     emitLog(
       io,
