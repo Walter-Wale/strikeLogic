@@ -66,6 +66,61 @@ function getScoreConfidence(score) {
   return "LOW";
 }
 
+function getAvgGoals(records) {
+  const valid = records.filter(
+    (record) => record.homeScore !== null && record.awayScore !== null,
+  );
+
+  if (valid.length === 0) return 0;
+
+  const total = valid.reduce(
+    (sum, record) => sum + record.homeScore + record.awayScore,
+    0,
+  );
+  return total / valid.length;
+}
+
+function calculateGoalScore({ HOME_FORM, AWAY_FORM, DIRECT_H2H }) {
+  let score = 0;
+
+  const homeAvg = getAvgGoals(HOME_FORM);
+  const awayAvg = getAvgGoals(AWAY_FORM);
+  const h2hAvg = getAvgGoals(DIRECT_H2H);
+  const combinedAvg = (homeAvg + awayAvg + h2hAvg) / 3;
+  const validH2H = DIRECT_H2H.filter(
+    (record) => record.homeScore !== null && record.awayScore !== null,
+  );
+
+  // --- BASELINE (very strict) ---
+  if (combinedAvg >= 3.5) score += 8;
+  else if (combinedAvg >= 3.0) score += 6;
+  else if (combinedAvg >= 2.5) score += 3;
+  else score -= 6;
+
+  // --- CONSISTENCY (must repeat, not one-off) ---
+  const highScoringMatches = validH2H.filter(
+    (record) => record.homeScore + record.awayScore >= 3,
+  ).length;
+
+  if (highScoringMatches >= 4) score += 6;
+  else if (highScoringMatches >= 3) score += 4;
+  else if (highScoringMatches >= 2) score += 2;
+  else score -= 4;
+
+  // --- LOW SCORE PENALTY (very strong) ---
+  const lowScoringMatches = validH2H.filter(
+    (record) => record.homeScore + record.awayScore <= 1,
+  ).length;
+
+  if (lowScoringMatches >= 2) score -= 7;
+
+  // --- ATTACK SIGNAL ---
+  if (homeAvg >= 1.6) score += 3;
+  if (awayAvg >= 1.3) score += 3;
+
+  return score;
+}
+
 /**
  * Returns true if `teamName` won in the given H2H record.
  * Skips records with null scores.
@@ -95,6 +150,8 @@ function teamLost(record, teamName) {
  *   - leagues[] (optional) - array of league name strings
  *   - mode (optional) - "gate" or "score"
  *   - threshold (optional) - minimum score to include a prediction
+ *   - over15Threshold (optional) - goal score threshold for Over 1.5
+ *   - over25Threshold (optional) - goal score threshold for Over 2.5
  *
  * Returns { success: true, data: [ predictionObject, ... ] }
  */
@@ -104,6 +161,14 @@ async function getPredictions(req, res) {
     const mode = req.query.mode === "score" ? "score" : "gate";
     const parsedThreshold = Number(req.query.threshold);
     const threshold = Number.isFinite(parsedThreshold) ? parsedThreshold : 10;
+    const parsedOver15Threshold = Number(req.query.over15Threshold);
+    const over15Threshold = Number.isFinite(parsedOver15Threshold)
+      ? parsedOver15Threshold
+      : 7;
+    const parsedOver25Threshold = Number(req.query.over25Threshold);
+    const over25Threshold = Number.isFinite(parsedOver25Threshold)
+      ? parsedOver25Threshold
+      : 11;
 
     if (!date) {
       return res
@@ -135,9 +200,20 @@ async function getPredictions(req, res) {
 
     for (const match of syncedMatches) {
       const h2hData = await databaseService.getH2HData(match.id);
-      const { HOME_FORM = [], DIRECT_H2H = [] } = h2hData;
+      const {
+        HOME_FORM = [],
+        AWAY_FORM = [],
+        DIRECT_H2H = [],
+      } = h2hData;
 
       const homeTeam = match.homeTeam;
+      const goalScore = calculateGoalScore({
+        HOME_FORM,
+        AWAY_FORM,
+        DIRECT_H2H,
+      });
+      const over15 = goalScore >= over15Threshold;
+      const over25 = goalScore >= over25Threshold;
 
       const formRecords = HOME_FORM.filter(
         (r) => r.homeScore !== null && r.awayScore !== null,
@@ -159,16 +235,15 @@ async function getPredictions(req, res) {
 
       let score = null;
       let confidence = null;
+      let winnerQualified = false;
 
       if (mode === "gate") {
-        const passes = passesGateSystem({
+        winnerQualified = passesGateSystem({
           formWins,
           formLosses,
           h2hHomeWins,
           h2hTotalLosses,
         });
-
-        if (!passes) continue;
       } else if (mode === "score") {
         score = calculateScore({
           formWins,
@@ -176,9 +251,8 @@ async function getPredictions(req, res) {
           h2hHomeWins,
           h2hTotalLosses,
         });
-
-        if (score < threshold) continue;
         confidence = getScoreConfidence(score);
+        winnerQualified = score >= threshold;
       }
 
       predictions.push({
@@ -189,13 +263,18 @@ async function getPredictions(req, res) {
         homeTeam: match.homeTeam,
         awayTeam: match.awayTeam,
         leagueName: match.leagueName,
-        predictedWinner: homeTeam,
+        predictedWinner: winnerQualified ? homeTeam : null,
         oddsHome: match.oddsHome ?? null,
         oddsDraw: match.oddsDraw ?? null,
         oddsAway: match.oddsAway ?? null,
         mode,
         score: score !== null ? Number(score.toFixed(2)) : null,
         confidence,
+        over15,
+        over25,
+        over15Threshold,
+        over25Threshold,
+        goalScore: Number(goalScore.toFixed(2)),
       });
     }
 

@@ -21,6 +21,10 @@ function PredictionSection({
   onPredictionModeChange,
   scoreThreshold,
   onScoreThresholdChange,
+  over15Threshold,
+  onOver15ThresholdChange,
+  over25Threshold,
+  onOver25ThresholdChange,
   selectedDate,
 }) {
   const isScoreMode = predictionMode === "score";
@@ -70,6 +74,26 @@ function PredictionSection({
               sx={{ width: 150, mt: { xs: 0, sm: 3 } }}
             />
           )}
+
+          <TextField
+            label="Over 1.5 Threshold"
+            type="number"
+            size="small"
+            value={over15Threshold}
+            onChange={(event) => onOver15ThresholdChange(event.target.value)}
+            inputProps={{ min: 0, step: 0.5 }}
+            sx={{ width: 165, mt: { xs: 0, sm: 3 } }}
+          />
+
+          <TextField
+            label="Over 2.5 Threshold"
+            type="number"
+            size="small"
+            value={over25Threshold}
+            onChange={(event) => onOver25ThresholdChange(event.target.value)}
+            inputProps={{ min: 0, step: 0.5 }}
+            sx={{ width: 165, mt: { xs: 0, sm: 3 } }}
+          />
         </Box>
 
         <Tooltip
@@ -105,6 +129,8 @@ function PredictionSection({
         loading={predictionsLoading}
         mode={predictionMode}
         threshold={scoreThreshold}
+        over15Threshold={over15Threshold}
+        over25Threshold={over25Threshold}
         onAnalyzeClick={onAnalyzeClick}
         matchDate={selectedDate ? selectedDate.format("YYYY-MM-DD") : null}
       />

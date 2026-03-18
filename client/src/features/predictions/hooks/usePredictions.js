@@ -5,11 +5,13 @@ import { allMatchesSynced } from "../../matches/utils/matchUtils";
 
 const DEFAULT_PREDICTION_MODE = "gate";
 const DEFAULT_SCORE_THRESHOLD = "10";
+const DEFAULT_OVER15_THRESHOLD = "7";
+const DEFAULT_OVER25_THRESHOLD = "11";
 
-function normalizeThreshold(value) {
-  if (value === "" || value == null) return 10;
+function normalizeThreshold(value, fallback = 10) {
+  if (value === "" || value == null) return fallback;
   const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 10;
+  return Number.isFinite(parsed) ? parsed : fallback;
 }
 
 /**
@@ -24,6 +26,12 @@ function usePredictions(selectedDate, selectedLeagues, matches) {
   const [predictionsLoading, setPredictionsLoading] = useState(false);
   const [predictionMode, setPredictionMode] = useState(DEFAULT_PREDICTION_MODE);
   const [scoreThreshold, setScoreThreshold] = useState(DEFAULT_SCORE_THRESHOLD);
+  const [over15Threshold, setOver15Threshold] = useState(
+    DEFAULT_OVER15_THRESHOLD,
+  );
+  const [over25Threshold, setOver25Threshold] = useState(
+    DEFAULT_OVER25_THRESHOLD,
+  );
 
   // Button is enabled when: the chain-complete log fired, OR all visible synced matches exist
   const h2hChainComplete = chainCompleteDetected || allMatchesSynced(matches);
@@ -36,7 +44,14 @@ function usePredictions(selectedDate, selectedLeagues, matches) {
   // Clear stale prediction results whenever the inputs that affect them change.
   useEffect(() => {
     setPredictions([]);
-  }, [selectedDate, selectedLeagues, predictionMode, scoreThreshold]);
+  }, [
+    selectedDate,
+    selectedLeagues,
+    predictionMode,
+    scoreThreshold,
+    over15Threshold,
+    over25Threshold,
+  ]);
 
   // Handler: Run predictions
   const handleRunPredictions = async () => {
@@ -45,7 +60,9 @@ function usePredictions(selectedDate, selectedLeagues, matches) {
       const formattedDate = formatDate(selectedDate);
       const response = await fetchPredictions(formattedDate, selectedLeagues, {
         mode: predictionMode,
-        threshold: normalizeThreshold(scoreThreshold),
+        threshold: normalizeThreshold(scoreThreshold, 10),
+        over15Threshold: normalizeThreshold(over15Threshold, 7),
+        over25Threshold: normalizeThreshold(over25Threshold, 11),
       });
       if (response.success) {
         setPredictions(response.data || []);
@@ -64,6 +81,10 @@ function usePredictions(selectedDate, selectedLeagues, matches) {
     setPredictionMode,
     scoreThreshold,
     setScoreThreshold,
+    over15Threshold,
+    setOver15Threshold,
+    over25Threshold,
+    setOver25Threshold,
     chainCompleteDetected,
     setChainCompleteDetected,
     h2hChainComplete,

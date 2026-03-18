@@ -55,6 +55,10 @@ function App() {
     setPredictionMode,
     scoreThreshold,
     setScoreThreshold,
+    over15Threshold,
+    setOver15Threshold,
+    over25Threshold,
+    setOver25Threshold,
     setChainCompleteDetected,
     h2hChainComplete,
     handleRunPredictions,
@@ -120,6 +124,10 @@ function App() {
         onPredictionModeChange={setPredictionMode}
         scoreThreshold={scoreThreshold}
         onScoreThresholdChange={setScoreThreshold}
+        over15Threshold={over15Threshold}
+        onOver15ThresholdChange={setOver15Threshold}
+        over25Threshold={over25Threshold}
+        onOver25ThresholdChange={setOver25Threshold}
         selectedDate={selectedDate}
       />
 

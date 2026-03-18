@@ -6,6 +6,7 @@
 import React, { useState } from "react";
 import {
   Box,
+  Button,
   Typography,
   Chip,
   CircularProgress,
@@ -44,8 +45,38 @@ function getConfidenceColor(confidence) {
   return "default";
 }
 
-function buildColumns(mode, onAnalyzeClick) {
-  const baseColumns = [
+function renderGoalMarketChip(value, label) {
+  return (
+    <Chip
+      label={`${label}: ${value ? "YES" : "NO"}`}
+      size="small"
+      color={value ? "success" : "default"}
+      variant={value ? "filled" : "outlined"}
+    />
+  );
+}
+
+function normalizeNumericThreshold(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function isOver15BandMatch(goalScore, over15Threshold, over25Threshold) {
+  return goalScore > over15Threshold && goalScore < over25Threshold;
+}
+
+function isOver25BandMatch(goalScore, over25Threshold) {
+  return goalScore > over25Threshold;
+}
+
+function buildColumns(
+  mode,
+  onAnalyzeClick,
+  activeSubTab,
+  over15Threshold,
+  over25Threshold,
+) {
+  const commonColumns = [
     {
       field: "matchDate",
       headerName: "Date",
@@ -90,23 +121,30 @@ function buildColumns(mode, onAnalyzeClick) {
       ),
       sortable: false,
     },
+  ];
+
+  const winnerColumns = [
+    ...commonColumns,
     {
       field: "predictedWinner",
       headerName: "Predicted Winner",
       width: 200,
-      renderCell: (params) => (
-        <Chip
-          icon={<EmojiEventsIcon sx={{ color: "#fff !important" }} />}
-          label={params.value}
-          size="small"
-          sx={{
-            backgroundColor: "success.main",
-            color: "white",
-            fontWeight: 600,
-            "& .MuiChip-icon": { color: "white" },
-          }}
-        />
-      ),
+      renderCell: (params) =>
+        params.value ? (
+          <Chip
+            icon={<EmojiEventsIcon sx={{ color: "#fff !important" }} />}
+            label={params.value}
+            size="small"
+            sx={{
+              backgroundColor: "success.main",
+              color: "white",
+              fontWeight: 600,
+              "& .MuiChip-icon": { color: "white" },
+            }}
+          />
+        ) : (
+          "-"
+        ),
       sortable: false,
     },
     {
@@ -138,12 +176,67 @@ function buildColumns(mode, onAnalyzeClick) {
     },
   ];
 
-  if (mode !== "score") {
-    return baseColumns;
+  const goalColumns = [
+    ...commonColumns,
+    {
+      field: "goalScore",
+      headerName: "Goal Score",
+      width: 110,
+      align: "center",
+      headerAlign: "center",
+      valueFormatter: (params) =>
+        params.value != null ? Number(params.value).toFixed(2) : "-",
+    },
+  ];
+
+  if (activeSubTab === "over15") {
+    return [
+      ...goalColumns,
+      {
+        field: "over15Band",
+        headerName: "Over 1.5",
+        width: 130,
+        align: "center",
+        headerAlign: "center",
+        renderCell: (params) =>
+          renderGoalMarketChip(
+            isOver15BandMatch(
+              params.row.goalScore,
+              over15Threshold,
+              over25Threshold,
+            ),
+            "O1.5",
+          ),
+        sortable: false,
+      },
+    ];
   }
 
-  return [
-    ...baseColumns,
+  if (activeSubTab === "over25") {
+    return [
+      ...goalColumns,
+      {
+        field: "over25Band",
+        headerName: "Over 2.5",
+        width: 130,
+        align: "center",
+        headerAlign: "center",
+        renderCell: (params) =>
+          renderGoalMarketChip(
+            isOver25BandMatch(params.row.goalScore, over25Threshold),
+            "O2.5",
+          ),
+        sortable: false,
+      },
+    ];
+  }
+
+  if (mode !== "score") {
+    return winnerColumns;
+  }
+
+  const scoredColumns = [
+    ...winnerColumns,
     {
       field: "score",
       headerName: "Score",
@@ -169,6 +262,7 @@ function buildColumns(mode, onAnalyzeClick) {
       ),
     },
   ];
+  return scoredColumns;
 }
 
 export default function PredictionTable({
@@ -176,19 +270,63 @@ export default function PredictionTable({
   loading = false,
   mode = "gate",
   threshold = "10",
+  over15Threshold = "7",
+  over25Threshold = "11",
   onAnalyzeClick,
   matchDate,
 }) {
   const [activeTab, setActiveTab] = useState(0);
+  const [activeSubTab, setActiveSubTab] = useState("winners");
   // Timestamp bumped on every successful save - triggers PastTicketsTab to refetch
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const isScoreMode = mode === "score";
-  const columns = buildColumns(mode, onAnalyzeClick);
-  const thresholdLabel =
-    threshold === "" || threshold == null ? "10" : threshold;
+  const thresholdLabel = threshold === "" || threshold == null ? "10" : threshold;
+  const over15ThresholdValue = normalizeNumericThreshold(over15Threshold, 7);
+  const over25ThresholdValue = normalizeNumericThreshold(over25Threshold, 11);
+  const over15ThresholdLabel = String(over15ThresholdValue);
+  const over25ThresholdLabel = String(over25ThresholdValue);
+  const winnerPredictions = predictions.filter((prediction) =>
+    Boolean(prediction.predictedWinner),
+  );
+
+  let filteredPredictions = winnerPredictions;
+
+  if (activeSubTab === "over15") {
+    filteredPredictions = predictions.filter((prediction) =>
+      isOver15BandMatch(
+        prediction.goalScore,
+        over15ThresholdValue,
+        over25ThresholdValue,
+      ),
+    );
+  }
+
+  if (activeSubTab === "over25") {
+    filteredPredictions = predictions.filter((prediction) =>
+      isOver25BandMatch(prediction.goalScore, over25ThresholdValue),
+    );
+  }
+
+  const columns = buildColumns(
+    mode,
+    onAnalyzeClick,
+    activeSubTab,
+    over15ThresholdValue,
+    over25ThresholdValue,
+  );
+  const headerCount = filteredPredictions.length;
+  const headerLabel =
+    activeSubTab === "winners"
+      ? "predicted win"
+      : activeSubTab === "over15"
+        ? "over 1.5 pick"
+        : "over 2.5 pick";
 
   // Assign stable row IDs from matchId
-  const rows = predictions.map((p) => ({ ...p, id: p.matchId }));
+  const rows = filteredPredictions.map((prediction) => ({
+    ...prediction,
+    id: prediction.matchId,
+  }));
 
   return (
     <Paper elevation={2} sx={{ p: 3, mt: 3 }}>
@@ -205,13 +343,13 @@ export default function PredictionTable({
         <EmojiEventsIcon sx={{ color: "warning.main", fontSize: 28 }} />
         <Typography variant="h5">
           Predictions
-          {predictions.length > 0 && (
+          {headerCount > 0 && (
             <Typography
               component="span"
               sx={{ ml: 2, color: "text.secondary", fontSize: "1rem" }}
             >
-              ({predictions.length} predicted win
-              {predictions.length !== 1 ? "s" : ""})
+              ({headerCount} {headerLabel}
+              {headerCount !== 1 ? "s" : ""})
             </Typography>
           )}
         </Typography>
@@ -229,6 +367,18 @@ export default function PredictionTable({
             variant="outlined"
           />
         )}
+        <Chip
+          label={`O1.5 > ${over15ThresholdLabel} < ${over25ThresholdLabel}`}
+          size="small"
+          color={activeSubTab === "over15" ? "success" : "default"}
+          variant={activeSubTab === "over15" ? "filled" : "outlined"}
+        />
+        <Chip
+          label={`O2.5 > ${over25ThresholdLabel}`}
+          size="small"
+          color={activeSubTab === "over25" ? "success" : "default"}
+          variant={activeSubTab === "over25" ? "filled" : "outlined"}
+        />
         {loading && <CircularProgress size={20} sx={{ ml: 1 }} />}
       </Box>
 
@@ -257,15 +407,41 @@ export default function PredictionTable({
 
       {/* Predictions tab panel - always mounted, hidden when inactive */}
       <Box sx={{ display: activeTab === 0 ? "block" : "none" }}>
-        {!loading && predictions.length === 0 ? (
+        <Box sx={{ display: "flex", gap: 1, mb: 2, flexWrap: "wrap" }}>
+          <Button
+            variant={activeSubTab === "winners" ? "contained" : "outlined"}
+            onClick={() => setActiveSubTab("winners")}
+          >
+            Match Winners
+          </Button>
+          <Button
+            variant={activeSubTab === "over15" ? "contained" : "outlined"}
+            onClick={() => setActiveSubTab("over15")}
+          >
+            Over 1.5
+          </Button>
+          <Button
+            variant={activeSubTab === "over25" ? "contained" : "outlined"}
+            onClick={() => setActiveSubTab("over25")}
+          >
+            Over 2.5
+          </Button>
+        </Box>
+
+        {!loading && filteredPredictions.length === 0 ? (
           <Typography
             variant="body2"
             color="text.secondary"
             sx={{ py: 4, textAlign: "center" }}
           >
-            {isScoreMode
-              ? "No predictions met the selected scoring threshold."
-              : "No strong home-team predictions found for the selected matches."}
+            {activeSubTab === "winners" &&
+              (isScoreMode
+                ? "No predictions met the selected scoring threshold."
+                : "No strong home-team predictions found for the selected matches.")}
+            {activeSubTab === "over15" &&
+              "No matches fell between the Over 1.5 and Over 2.5 thresholds."}
+            {activeSubTab === "over25" &&
+              "No matches exceeded the Over 2.5 threshold."}
           </Typography>
         ) : (
           <DataGrid
@@ -298,7 +474,7 @@ export default function PredictionTable({
       {/* Tickets tab panel - always mounted, hidden when inactive */}
       <Box sx={{ display: activeTab === 1 ? "block" : "none" }}>
         <TicketsTab
-          predictions={predictions}
+          predictions={winnerPredictions}
           matchDate={matchDate}
           onSaved={() => setLastSavedAt(Date.now())}
         />
