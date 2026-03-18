@@ -59,6 +59,10 @@ function App() {
   const {
     predictions,
     predictionsLoading,
+    predictionMode,
+    setPredictionMode,
+    scoreThreshold,
+    setScoreThreshold,
     setChainCompleteDetected,
     h2hChainComplete,
     handleRunPredictions,
@@ -132,6 +136,10 @@ function App() {
         predictionsLoading={predictionsLoading}
         onRunPredictions={handleRunPredictions}
         predictions={predictions}
+        predictionMode={predictionMode}
+        onPredictionModeChange={setPredictionMode}
+        scoreThreshold={scoreThreshold}
+        onScoreThresholdChange={setScoreThreshold}
         selectedDate={selectedDate}
       />
 

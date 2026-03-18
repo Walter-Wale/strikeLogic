@@ -136,14 +136,23 @@ export async function scrapeH2HByLeagues(date, leagues, mode = "auto") {
  * Fetch predictions for synced matches on a given date and league set
  * @param {string} date - Date in YYYY-MM-DD format
  * @param {Array<string>} leagues - Array of league names to filter by
+ * @param {{ mode?: "gate" | "score", threshold?: number }} options
  * @returns {Promise<Object>} Response with predictions array
  */
-export async function fetchPredictions(date, leagues = []) {
+export async function fetchPredictions(date, leagues = [], options = {}) {
   try {
-    const params = { date };
+    const params = {
+      date,
+      mode: options.mode || "gate",
+    };
 
     if (leagues && leagues.length > 0) {
       params.leagues = leagues;
+    }
+
+    if (params.mode === "score") {
+      const parsedThreshold = Number(options.threshold);
+      params.threshold = Number.isFinite(parsedThreshold) ? parsedThreshold : 10;
     }
 
     const response = await apiClient.get("/predictions", { params });

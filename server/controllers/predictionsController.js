@@ -1,12 +1,13 @@
 /**
  * Predictions Controller
- * Runs the two-gate prediction algorithm on synced match H2H data.
+ * Runs the hybrid prediction algorithm on synced match H2H data.
  *
- * Gate 1 — Recent Form (HOME_FORM):
- *   Home team must have >= 4 wins AND <= 3 losses in their last recorded form games.
+ * Gate mode (default):
+ *   HOME_FORM requires >= 4 wins and <= 4 losses.
+ *   DIRECT_H2H requires <= 3 total losses and >= 2 home wins.
  *
- * Gate 2 — Head-to-Head (DIRECT_H2H):
- *   Home team must have <= 3 total H2H losses AND >= 2 wins when playing at home.
+ * Score mode:
+ *   Uses the same stats but converts them into a weighted score.
  *
  * Only predicts home-team wins.
  */
@@ -14,6 +15,56 @@
 const DatabaseService = require("../services/DatabaseService");
 
 const databaseService = new DatabaseService();
+
+function passesGateSystem({
+  formWins,
+  formLosses,
+  h2hHomeWins,
+  h2hTotalLosses,
+}) {
+  if (formWins < 4 || formLosses > 4) return false;
+  if (h2hTotalLosses > 3 || h2hHomeWins < 2) return false;
+  return true;
+}
+
+function calculateScore({
+  formWins,
+  formLosses,
+  h2hHomeWins,
+  h2hTotalLosses,
+}) {
+  let score = 0;
+
+  // FORM
+  if (formWins >= 4) {
+    score += 6 + (formWins - 4) * 1.5;
+  } else {
+    score -= (4 - formWins) * 3;
+  }
+
+  if (formLosses > 4) {
+    score -= (formLosses - 4) * 3;
+  }
+
+  // H2H
+  if (h2hHomeWins >= 2) {
+    score += 5 + (h2hHomeWins - 2) * 1.5;
+  } else {
+    score -= (2 - h2hHomeWins) * 4;
+  }
+
+  if (h2hTotalLosses > 3) {
+    score -= (h2hTotalLosses - 3) * 3;
+  }
+
+  return score;
+}
+
+function getScoreConfidence(score) {
+  if (score >= 15) return "HIGH";
+  if (score >= 10) return "MEDIUM";
+  return "LOW";
+}
 
 /**
  * Returns true if `teamName` won in the given H2H record.
@@ -40,14 +91,19 @@ function teamLost(record, teamName) {
 /**
  * GET /predictions
  * Query params:
- *   - date (required) — YYYY-MM-DD
- *   - leagues[] (optional) — array of league name strings
+ *   - date (required) - YYYY-MM-DD
+ *   - leagues[] (optional) - array of league name strings
+ *   - mode (optional) - "gate" or "score"
+ *   - threshold (optional) - minimum score to include a prediction
  *
  * Returns { success: true, data: [ predictionObject, ... ] }
  */
 async function getPredictions(req, res) {
   try {
     const { date } = req.query;
+    const mode = req.query.mode === "score" ? "score" : "gate";
+    const parsedThreshold = Number(req.query.threshold);
+    const threshold = Number.isFinite(parsedThreshold) ? parsedThreshold : 10;
 
     if (!date) {
       return res
@@ -55,7 +111,7 @@ async function getPredictions(req, res) {
         .json({ success: false, error: "date query parameter is required" });
     }
 
-    // Normalise leagues — Express parses repeated keys as arrays automatically,
+    // Normalise leagues - Express parses repeated keys as arrays automatically,
     // but handle both ?leagues[]=X and ?leagues=X for safety.
     let leagues = req.query.leagues || req.query["leagues[]"] || [];
     if (typeof leagues === "string") leagues = [leagues];
@@ -83,8 +139,6 @@ async function getPredictions(req, res) {
 
       const homeTeam = match.homeTeam;
 
-      // --- Gate 1: Recent Form ---
-      // Use HOME_FORM records with valid scores
       const formRecords = HOME_FORM.filter(
         (r) => r.homeScore !== null && r.awayScore !== null,
       );
@@ -93,24 +147,39 @@ async function getPredictions(req, res) {
         teamLost(r, homeTeam),
       ).length;
 
-      // Must have >= 4 wins and <= 4 losses to proceed
-      if (formWins < 4 || formLosses > 4) continue;
-
-      // --- Gate 2: Head-to-Head record ---
       const h2hRecords = DIRECT_H2H.filter(
         (r) => r.homeScore !== null && r.awayScore !== null,
       );
       const h2hTotalLosses = h2hRecords.filter((r) =>
         teamLost(r, homeTeam),
       ).length;
-
-      // Wins specifically when the home team was the HOME side in the H2H fixture
       const h2hHomeWins = h2hRecords.filter(
         (r) => r.homeTeam === homeTeam && r.homeScore > r.awayScore,
       ).length;
 
-      // Must have <= 3 total H2H losses and >= 2 home wins
-      if (h2hTotalLosses > 3 || h2hHomeWins < 2) continue;
+      let score = null;
+      let confidence = null;
+
+      if (mode === "gate") {
+        const passes = passesGateSystem({
+          formWins,
+          formLosses,
+          h2hHomeWins,
+          h2hTotalLosses,
+        });
+
+        if (!passes) continue;
+      } else if (mode === "score") {
+        score = calculateScore({
+          formWins,
+          formLosses,
+          h2hHomeWins,
+          h2hTotalLosses,
+        });
+
+        if (score < threshold) continue;
+        confidence = getScoreConfidence(score);
+      }
 
       predictions.push({
         matchId: match.id,
@@ -123,6 +192,9 @@ async function getPredictions(req, res) {
         oddsHome: match.oddsHome ?? null,
         oddsDraw: match.oddsDraw ?? null,
         oddsAway: match.oddsAway ?? null,
+        mode,
+        score: score !== null ? Number(score.toFixed(2)) : null,
+        confidence,
       });
     }
 

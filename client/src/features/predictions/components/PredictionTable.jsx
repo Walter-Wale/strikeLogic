@@ -1,10 +1,6 @@
 /**
  * PredictionTable Component
- * Displays home-team win predictions produced by the algorithm.
- *
- * Prediction criteria (home team only):
- *   Gate 1 — HOME_FORM: >= 4 wins AND <= 3 losses
- *   Gate 2 — DIRECT_H2H: <= 3 total losses AND >= 2 home wins
+ * Displays home-team win predictions produced by the selected prediction mode.
  */
 
 import React, { useState } from "react";
@@ -42,83 +38,128 @@ function formatTime(timeStr) {
   return timeStr.slice(0, 5);
 }
 
-const columns = [
-  {
-    field: "matchDate",
-    headerName: "Date",
-    width: 110,
-    valueFormatter: (params) => formatDate(params.value),
-  },
-  {
-    field: "matchTime",
-    headerName: "Time",
-    width: 80,
-    valueFormatter: (params) => formatTime(params.value),
-  },
-  {
-    field: "fixture",
-    headerName: "Fixture",
-    flex: 1,
-    minWidth: 220,
-    valueGetter: (params) => `${params.row.homeTeam} vs ${params.row.awayTeam}`,
-    sortable: false,
-  },
-  {
-    field: "predictedWinner",
-    headerName: "Predicted Winner",
-    width: 200,
-    renderCell: (params) => (
-      <Chip
-        icon={<EmojiEventsIcon sx={{ color: "#fff !important" }} />}
-        label={params.value}
-        size="small"
-        sx={{
-          backgroundColor: "success.main",
-          color: "white",
-          fontWeight: 600,
-          "& .MuiChip-icon": { color: "white" },
-        }}
-      />
-    ),
-    sortable: false,
-  },
-  {
-    field: "oddsHome",
-    headerName: "Home W",
-    width: 85,
-    align: "center",
-    headerAlign: "center",
-    valueFormatter: (params) =>
-      params.value != null ? Number(params.value).toFixed(2) : "—",
-  },
-  {
-    field: "oddsDraw",
-    headerName: "Draw",
-    width: 85,
-    align: "center",
-    headerAlign: "center",
-    valueFormatter: (params) =>
-      params.value != null ? Number(params.value).toFixed(2) : "—",
-  },
-  {
-    field: "oddsAway",
-    headerName: "Away W",
-    width: 85,
-    align: "center",
-    headerAlign: "center",
-    valueFormatter: (params) =>
-      params.value != null ? Number(params.value).toFixed(2) : "—",
-  },
-];
+function getConfidenceColor(confidence) {
+  if (confidence === "HIGH") return "success";
+  if (confidence === "MEDIUM") return "warning";
+  return "default";
+}
+
+function buildColumns(mode) {
+  const baseColumns = [
+    {
+      field: "matchDate",
+      headerName: "Date",
+      width: 110,
+      valueFormatter: (params) => formatDate(params.value),
+    },
+    {
+      field: "matchTime",
+      headerName: "Time",
+      width: 80,
+      valueFormatter: (params) => formatTime(params.value),
+    },
+    {
+      field: "fixture",
+      headerName: "Fixture",
+      flex: 1,
+      minWidth: 220,
+      valueGetter: (params) => `${params.row.homeTeam} vs ${params.row.awayTeam}`,
+      sortable: false,
+    },
+    {
+      field: "predictedWinner",
+      headerName: "Predicted Winner",
+      width: 200,
+      renderCell: (params) => (
+        <Chip
+          icon={<EmojiEventsIcon sx={{ color: "#fff !important" }} />}
+          label={params.value}
+          size="small"
+          sx={{
+            backgroundColor: "success.main",
+            color: "white",
+            fontWeight: 600,
+            "& .MuiChip-icon": { color: "white" },
+          }}
+        />
+      ),
+      sortable: false,
+    },
+    {
+      field: "oddsHome",
+      headerName: "Home W",
+      width: 85,
+      align: "center",
+      headerAlign: "center",
+      valueFormatter: (params) =>
+        params.value != null ? Number(params.value).toFixed(2) : "-",
+    },
+    {
+      field: "oddsDraw",
+      headerName: "Draw",
+      width: 85,
+      align: "center",
+      headerAlign: "center",
+      valueFormatter: (params) =>
+        params.value != null ? Number(params.value).toFixed(2) : "-",
+    },
+    {
+      field: "oddsAway",
+      headerName: "Away W",
+      width: 85,
+      align: "center",
+      headerAlign: "center",
+      valueFormatter: (params) =>
+        params.value != null ? Number(params.value).toFixed(2) : "-",
+    },
+  ];
+
+  if (mode !== "score") {
+    return baseColumns;
+  }
+
+  return [
+    ...baseColumns,
+    {
+      field: "score",
+      headerName: "Score",
+      width: 95,
+      align: "center",
+      headerAlign: "center",
+      valueFormatter: (params) =>
+        params.value != null ? Number(params.value).toFixed(2) : "-",
+    },
+    {
+      field: "confidence",
+      headerName: "Confidence",
+      width: 120,
+      align: "center",
+      headerAlign: "center",
+      renderCell: (params) => (
+        <Chip
+          label={params.value || "LOW"}
+          size="small"
+          color={getConfidenceColor(params.value)}
+          variant={params.value === "HIGH" ? "filled" : "outlined"}
+        />
+      ),
+    },
+  ];
+}
 
 export default function PredictionTable({
   predictions = [],
   loading = false,
+  mode = "gate",
+  threshold = "10",
   matchDate,
 }) {
   const [activeTab, setActiveTab] = useState(0);
-  // Timestamp bumped on every successful save — triggers PastTicketsTab to refetch
+  // Timestamp bumped on every successful save - triggers PastTicketsTab to refetch
   const [lastSavedAt, setLastSavedAt] = useState(null);
+  const isScoreMode = mode === "score";
+  const columns = buildColumns(mode);
+  const thresholdLabel = threshold === "" || threshold == null ? "10" : threshold;
 
   // Assign stable row IDs from matchId
   const rows = predictions.map((p) => ({ ...p, id: p.matchId }));
@@ -132,6 +173,7 @@ export default function PredictionTable({
           alignItems: "center",
           gap: 1,
           mb: 2,
+          flexWrap: "wrap",
         }}
       >
         <EmojiEventsIcon sx={{ color: "warning.main", fontSize: 28 }} />
@@ -147,6 +189,20 @@ export default function PredictionTable({
             </Typography>
           )}
         </Typography>
+        <Chip
+          label={isScoreMode ? "Score Mode" : "Gate Mode"}
+          size="small"
+          color={isScoreMode ? "primary" : "default"}
+          variant={isScoreMode ? "filled" : "outlined"}
+        />
+        {isScoreMode && (
+          <Chip
+            label={`Threshold ${thresholdLabel}`}
+            size="small"
+            color="secondary"
+            variant="outlined"
+          />
+        )}
         {loading && <CircularProgress size={20} sx={{ ml: 1 }} />}
       </Box>
 
@@ -173,7 +229,7 @@ export default function PredictionTable({
         />
       </Tabs>
 
-      {/* Predictions tab panel — always mounted, hidden when inactive */}
+      {/* Predictions tab panel - always mounted, hidden when inactive */}
       <Box sx={{ display: activeTab === 0 ? "block" : "none" }}>
         {!loading && predictions.length === 0 ? (
           <Typography
@@ -181,7 +237,9 @@ export default function PredictionTable({
             color="text.secondary"
             sx={{ py: 4, textAlign: "center" }}
           >
-            No strong home-team predictions found for the selected matches.
+            {isScoreMode
+              ? "No predictions met the selected scoring threshold."
+              : "No strong home-team predictions found for the selected matches."}
           </Typography>
         ) : (
           <DataGrid
@@ -211,7 +269,7 @@ export default function PredictionTable({
         )}
       </Box>
 
-      {/* Tickets tab panel — always mounted, hidden when inactive */}
+      {/* Tickets tab panel - always mounted, hidden when inactive */}
       <Box sx={{ display: activeTab === 1 ? "block" : "none" }}>
         <TicketsTab
           predictions={predictions}
@@ -220,7 +278,7 @@ export default function PredictionTable({
         />
       </Box>
 
-      {/* Past Tickets tab panel — always mounted, hidden when inactive */}
+      {/* Past Tickets tab panel - always mounted, hidden when inactive */}
       <Box sx={{ display: activeTab === 2 ? "block" : "none" }}>
         <PastTicketsTab lastSavedAt={lastSavedAt} />
       </Box>
