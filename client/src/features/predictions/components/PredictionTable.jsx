@@ -290,23 +290,25 @@ export default function PredictionTable({
   const winnerPredictions = predictions.filter((prediction) =>
     Boolean(prediction.predictedWinner),
   );
+  const over15Predictions = predictions.filter((prediction) =>
+    isOver15BandMatch(
+      prediction.goalScore,
+      over15ThresholdValue,
+      over25ThresholdValue,
+    ),
+  );
+  const over25Predictions = predictions.filter((prediction) =>
+    isOver25BandMatch(prediction.goalScore, over25ThresholdValue),
+  );
 
   let filteredPredictions = winnerPredictions;
 
   if (activeSubTab === "over15") {
-    filteredPredictions = predictions.filter((prediction) =>
-      isOver15BandMatch(
-        prediction.goalScore,
-        over15ThresholdValue,
-        over25ThresholdValue,
-      ),
-    );
+    filteredPredictions = over15Predictions;
   }
 
   if (activeSubTab === "over25") {
-    filteredPredictions = predictions.filter((prediction) =>
-      isOver25BandMatch(prediction.goalScore, over25ThresholdValue),
-    );
+    filteredPredictions = over25Predictions;
   }
 
   const columns = buildColumns(
@@ -482,7 +484,9 @@ export default function PredictionTable({
       {/* Tickets tab panel - always mounted, hidden when inactive */}
       <Box sx={{ display: activeTab === 1 ? "block" : "none" }}>
         <TicketsTab
-          predictions={winnerPredictions}
+          winnerPredictions={winnerPredictions}
+          over15Predictions={over15Predictions}
+          over25Predictions={over25Predictions}
           matchDate={matchDate}
           onSaved={() => setLastSavedAt(Date.now())}
         />

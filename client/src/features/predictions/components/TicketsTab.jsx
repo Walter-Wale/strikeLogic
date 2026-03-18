@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   Box,
@@ -6,8 +6,12 @@ import {
   Card,
   CardContent,
   CardHeader,
+  Checkbox,
+  Chip,
   CircularProgress,
   Divider,
+  FormControlLabel,
+  FormGroup,
   Grid,
   InputAdornment,
   List,
@@ -32,20 +36,110 @@ function shuffle(array) {
   return arr;
 }
 
-function chunk(array, size) {
-  const chunks = [];
-  for (let i = 0; i < array.length; i += size) {
-    chunks.push(array.slice(i, i + size));
-  }
-  return chunks;
-}
-
 function buildPool(predictions, maxAppearances) {
   const pool = [];
   for (let i = 0; i < Math.max(1, maxAppearances); i++) {
     pool.push(...predictions);
   }
   return pool;
+}
+
+function getTicketPickMeta(prediction) {
+  if (
+    prediction.predictedWinner &&
+    (prediction.predictedWinner === prediction.homeTeam ||
+      prediction.predictedWinner === prediction.awayTeam)
+  ) {
+    return {
+      label: `Winner: ${prediction.predictedWinner}`,
+      color: "success",
+      variant: "filled",
+    };
+  }
+
+  if (prediction.predictedWinner === "Over 1.5") {
+    return { label: "Over 1.5", color: "info", variant: "outlined" };
+  }
+
+  if (prediction.predictedWinner === "Over 2.5") {
+    return { label: "Over 2.5", color: "warning", variant: "outlined" };
+  }
+
+  return {
+    label: prediction.predictedWinner || "Pick",
+    color: "default",
+    variant: "outlined",
+  };
+}
+
+function buildTicketPredictions({
+  winnerPredictions,
+  over15Predictions,
+  over25Predictions,
+  includeOver15,
+  includeOver25,
+}) {
+  const pool = winnerPredictions.map((prediction) => ({
+    ...prediction,
+    ticketMarket: "winner",
+  }));
+
+  if (includeOver15) {
+    pool.push(
+      ...over15Predictions.map((prediction) => ({
+        ...prediction,
+        predictedWinner: "Over 1.5",
+        ticketMarket: "over15",
+      })),
+    );
+  }
+
+  if (includeOver25) {
+    pool.push(
+      ...over25Predictions.map((prediction) => ({
+        ...prediction,
+        predictedWinner: "Over 2.5",
+        ticketMarket: "over25",
+      })),
+    );
+  }
+
+  return pool;
+}
+
+function buildTickets(pool, size) {
+  const remaining = [...pool];
+  const tickets = [];
+  const ticketSize = Math.max(1, size);
+
+  while (remaining.length > 0) {
+    const ticket = [];
+    const usedMatchIds = new Set();
+
+    for (let index = 0; index < remaining.length && ticket.length < ticketSize; ) {
+      const candidate = remaining[index];
+      const matchKey =
+        candidate.matchId ??
+        `${candidate.homeTeam}-${candidate.awayTeam}-${candidate.matchDate}-${candidate.matchTime}`;
+
+      if (usedMatchIds.has(matchKey)) {
+        index += 1;
+        continue;
+      }
+
+      ticket.push(candidate);
+      usedMatchIds.add(matchKey);
+      remaining.splice(index, 1);
+    }
+
+    if (ticket.length === 0) {
+      ticket.push(remaining.shift());
+    }
+
+    tickets.push(ticket);
+  }
+
+  return tickets;
 }
 
 function TicketCard({ matches, idx }) {
@@ -115,22 +209,34 @@ function TicketCard({ matches, idx }) {
                     >
                       {p.awayTeam}
                     </Typography>
-                    {/* League label pushed to the right */}
-                    {p.leagueName && (
-                      <Typography
-                        component="span"
-                        variant="caption"
-                        sx={{
-                          ml: "auto",
-                          pl: 1,
-                          color: "text.secondary",
-                          whiteSpace: "nowrap",
-                          flexShrink: 0,
-                        }}
-                      >
-                        {p.leagueName}
-                      </Typography>
-                    )}
+                    <Box
+                      sx={{
+                        ml: "auto",
+                        pl: 1,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 0.75,
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Chip
+                        {...getTicketPickMeta(p)}
+                        size="small"
+                        sx={{ height: 22 }}
+                      />
+                      {p.leagueName && (
+                        <Typography
+                          component="span"
+                          variant="caption"
+                          sx={{
+                            color: "text.secondary",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {p.leagueName}
+                        </Typography>
+                      )}
+                    </Box>
                   </Box>
                 }
               />
@@ -142,10 +248,18 @@ function TicketCard({ matches, idx }) {
   );
 }
 
-export default function TicketsTab({ predictions = [], matchDate, onSaved }) {
+export default function TicketsTab({
+  winnerPredictions = [],
+  over15Predictions = [],
+  over25Predictions = [],
+  matchDate,
+  onSaved,
+}) {
   const [teamsPerTicket, setTeamsPerTicket] = useState(5);
   const [maxAppearances, setMaxAppearances] = useState(1);
   const [multiCount, setMultiCount] = useState(10);
+  const [includeOver15, setIncludeOver15] = useState(false);
+  const [includeOver25, setIncludeOver25] = useState(false);
   const [tickets, setTickets] = useState([]);
   const [saving, setSaving] = useState(false);
   const [snackbar, setSnackbar] = useState({
@@ -154,23 +268,45 @@ export default function TicketsTab({ predictions = [], matchDate, onSaved }) {
     severity: "success",
   });
 
-  const noData = predictions.length === 0;
+  const ticketPredictions = buildTicketPredictions({
+    winnerPredictions,
+    over15Predictions,
+    over25Predictions,
+    includeOver15,
+    includeOver25,
+  });
+  const noData = ticketPredictions.length === 0;
   const perTicket = Math.max(1, teamsPerTicket);
+  const ticketPoolSignature = [
+    winnerPredictions
+      .map((prediction) => `${prediction.matchId}:${prediction.predictedWinner}`)
+      .join("|"),
+    over15Predictions.map((prediction) => prediction.matchId).join("|"),
+    over25Predictions.map((prediction) => prediction.matchId).join("|"),
+    includeOver15,
+    includeOver25,
+    teamsPerTicket,
+    maxAppearances,
+  ].join("::");
+
+  useEffect(() => {
+    setTickets([]);
+  }, [ticketPoolSignature]);
 
   function handleRandomize() {
     if (noData) return;
-    const pool = buildPool(predictions, maxAppearances);
-    setTickets(chunk(shuffle(pool), perTicket));
+    const pool = buildPool(ticketPredictions, maxAppearances);
+    setTickets(buildTickets(shuffle(pool), perTicket));
   }
 
   function handleMultiRandomize() {
     if (noData) return;
-    let pool = buildPool(predictions, maxAppearances);
+    let pool = buildPool(ticketPredictions, maxAppearances);
     const times = Math.max(2, multiCount);
     for (let i = 0; i < times; i++) {
       pool = shuffle(pool);
     }
-    setTickets(chunk(pool, perTicket));
+    setTickets(buildTickets(pool, perTicket));
   }
 
   async function handleSave() {
@@ -233,6 +369,26 @@ export default function TicketsTab({ predictions = [], matchDate, onSaved }) {
             ),
           }}
         />
+        <FormGroup row sx={{ gap: 1 }}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={includeOver15}
+                onChange={(event) => setIncludeOver15(event.target.checked)}
+              />
+            }
+            label={`Include Over 1.5 (${over15Predictions.length})`}
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={includeOver25}
+                onChange={(event) => setIncludeOver25(event.target.checked)}
+              />
+            }
+            label={`Include Over 2.5 (${over25Predictions.length})`}
+          />
+        </FormGroup>
 
         <Divider orientation="vertical" flexItem />
 
@@ -293,7 +449,7 @@ export default function TicketsTab({ predictions = [], matchDate, onSaved }) {
               sx={{ ml: "auto" }}
             >
               {tickets.length} ticket{tickets.length !== 1 ? "s" : ""} &bull;{" "}
-              {predictions.length * Math.max(1, maxAppearances)} match slots
+              {ticketPredictions.length * Math.max(1, maxAppearances)} match slots
             </Typography>
           </>
         )}
@@ -320,7 +476,7 @@ export default function TicketsTab({ predictions = [], matchDate, onSaved }) {
           color="text.secondary"
           sx={{ textAlign: "center", py: 6 }}
         >
-          No predictions available. Run predictions first to generate tickets.
+          No ticket picks available. Run predictions first or enable goal markets.
         </Typography>
       )}
 
@@ -331,7 +487,8 @@ export default function TicketsTab({ predictions = [], matchDate, onSaved }) {
           sx={{ textAlign: "center", py: 6 }}
         >
           Press <strong>Randomize</strong> or <strong>Multi Randomize</strong>{" "}
-          to generate betting tickets.
+          to generate betting tickets. The same match will never appear twice in
+          the same ticket, even across different markets.
         </Typography>
       )}
 

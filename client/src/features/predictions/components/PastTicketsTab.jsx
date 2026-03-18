@@ -6,6 +6,7 @@ import {
   Card,
   CardContent,
   CardHeader,
+  Chip,
   CircularProgress,
   Divider,
   Grid,
@@ -28,6 +29,34 @@ import {
 } from "../../../services/apiService";
 
 /** Reusable ticket card (identical layout to TicketsTab) */
+function getTicketPickMeta(prediction) {
+  if (
+    prediction.predictedWinner &&
+    (prediction.predictedWinner === prediction.homeTeam ||
+      prediction.predictedWinner === prediction.awayTeam)
+  ) {
+    return {
+      label: `Winner: ${prediction.predictedWinner}`,
+      color: "success",
+      variant: "filled",
+    };
+  }
+
+  if (prediction.predictedWinner === "Over 1.5") {
+    return { label: "Over 1.5", color: "info", variant: "outlined" };
+  }
+
+  if (prediction.predictedWinner === "Over 2.5") {
+    return { label: "Over 2.5", color: "warning", variant: "outlined" };
+  }
+
+  return {
+    label: prediction.predictedWinner || "Pick",
+    color: "default",
+    variant: "outlined",
+  };
+}
+
 function TicketCard({ matches, idx }) {
   return (
     <Card
@@ -93,21 +122,34 @@ function TicketCard({ matches, idx }) {
                     >
                       {p.awayTeam}
                     </Typography>
-                    {p.leagueName && (
-                      <Typography
-                        component="span"
-                        variant="caption"
-                        sx={{
-                          ml: "auto",
-                          pl: 1,
-                          color: "text.secondary",
-                          whiteSpace: "nowrap",
-                          flexShrink: 0,
-                        }}
-                      >
-                        {p.leagueName}
-                      </Typography>
-                    )}
+                    <Box
+                      sx={{
+                        ml: "auto",
+                        pl: 1,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 0.75,
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Chip
+                        {...getTicketPickMeta(p)}
+                        size="small"
+                        sx={{ height: 22 }}
+                      />
+                      {p.leagueName && (
+                        <Typography
+                          component="span"
+                          variant="caption"
+                          sx={{
+                            color: "text.secondary",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {p.leagueName}
+                        </Typography>
+                      )}
+                    </Box>
                   </Box>
                 }
               />
