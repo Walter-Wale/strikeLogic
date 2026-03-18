@@ -20,6 +20,7 @@ import useFilteredMatches from "../features/matches/hooks/useFilteredMatches";
 import MatchSection from "../features/matches/components/MatchSection";
 
 import useH2HSocket from "../features/h2h/hooks/useH2HSocket";
+import useH2HModalController from "../features/h2h/hooks/useH2HModalController";
 import H2HModal from "../features/h2h/components/H2HModal";
 
 import useH2HScraping from "../features/scraping/hooks/useH2HScraping";
@@ -33,15 +34,6 @@ function App() {
   const [selectedDate, setSelectedDate] = useState(dayjs());
   const [selectedLeagues, setSelectedLeagues] = useState([]);
   const [scrapeMode, setScrapeMode] = useState("auto");
-
-  // H2H Modal state
-  const [h2hModalOpen, setH2hModalOpen] = useState(false);
-  const [selectedMatch, setSelectedMatch] = useState({
-    matchId: null,
-    flashscoreId: null,
-    homeTeam: "",
-    awayTeam: "",
-  });
 
   // Matches
   const {
@@ -68,6 +60,13 @@ function App() {
     handleRunPredictions,
   } = usePredictions(selectedDate, selectedLeagues, matches);
 
+  const {
+    h2hModalOpen,
+    selectedMatch,
+    handleAnalyzeClick,
+    handleCloseH2HModal,
+  } = useH2HModalController(allMatches, setError);
+
   // Socket: real-time H2H sync + chain-complete detection
   useH2HSocket(setAllMatches, setChainCompleteDetected);
 
@@ -77,26 +76,6 @@ function App() {
     selectedLeagues,
     scrapeMode,
   );
-
-  // Handler: Analyze match (open H2H modal)
-  const handleAnalyzeClick = (matchId, flashscoreId, homeTeam, awayTeam) => {
-    setSelectedMatch({ matchId, flashscoreId, homeTeam, awayTeam });
-    setH2hModalOpen(true);
-  };
-
-  // Handler: Close H2H modal
-  const handleCloseH2HModal = () => {
-    setH2hModalOpen(false);
-    // Clear selected match after animation completes
-    setTimeout(() => {
-      setSelectedMatch({
-        matchId: null,
-        flashscoreId: null,
-        homeTeam: "",
-        awayTeam: "",
-      });
-    }, 300);
-  };
 
   return (
     <PageContainer>
@@ -135,6 +114,7 @@ function App() {
         h2hChainComplete={h2hChainComplete}
         predictionsLoading={predictionsLoading}
         onRunPredictions={handleRunPredictions}
+        onAnalyzeClick={handleAnalyzeClick}
         predictions={predictions}
         predictionMode={predictionMode}
         onPredictionModeChange={setPredictionMode}

@@ -183,6 +183,7 @@ async function getPredictions(req, res) {
 
       predictions.push({
         matchId: match.id,
+        flashscoreId: match.flashscoreId,
         matchDate: match.matchDate,
         matchTime: match.matchTime,
         homeTeam: match.homeTeam,

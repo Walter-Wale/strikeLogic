@@ -44,7 +44,7 @@ function getConfidenceColor(confidence) {
   return "default";
 }
 
-function buildColumns(mode) {
+function buildColumns(mode, onAnalyzeClick) {
   const baseColumns = [
     {
       field: "matchDate",
@@ -63,7 +63,31 @@ function buildColumns(mode) {
       headerName: "Fixture",
       flex: 1,
       minWidth: 220,
-      valueGetter: (params) => `${params.row.homeTeam} vs ${params.row.awayTeam}`,
+      valueGetter: (params) =>
+        `${params.row.homeTeam} vs ${params.row.awayTeam}`,
+      renderCell: (params) => (
+        <Box
+          onClick={() => {
+            if (!onAnalyzeClick) return;
+            const match = params.row;
+            onAnalyzeClick(
+              match.matchId || match.id,
+              match.flashscoreId || null,
+              match.homeTeam,
+              match.awayTeam,
+            );
+          }}
+          sx={{
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            alignItems: "center",
+            cursor: "pointer",
+          }}
+        >
+          {params.value}
+        </Box>
+      ),
       sortable: false,
     },
     {
@@ -152,14 +176,16 @@ export default function PredictionTable({
   loading = false,
   mode = "gate",
   threshold = "10",
+  onAnalyzeClick,
   matchDate,
 }) {
   const [activeTab, setActiveTab] = useState(0);
   // Timestamp bumped on every successful save - triggers PastTicketsTab to refetch
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const isScoreMode = mode === "score";
-  const columns = buildColumns(mode);
-  const thresholdLabel = threshold === "" || threshold == null ? "10" : threshold;
+  const columns = buildColumns(mode, onAnalyzeClick);
+  const thresholdLabel =
+    threshold === "" || threshold == null ? "10" : threshold;
 
   // Assign stable row IDs from matchId
   const rows = predictions.map((p) => ({ ...p, id: p.matchId }));

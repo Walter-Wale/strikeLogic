@@ -15,6 +15,7 @@ function PredictionSection({
   h2hChainComplete,
   predictionsLoading,
   onRunPredictions,
+  onAnalyzeClick,
   predictions,
   predictionMode,
   onPredictionModeChange,
@@ -104,6 +105,7 @@ function PredictionSection({
         loading={predictionsLoading}
         mode={predictionMode}
         threshold={scoreThreshold}
+        onAnalyzeClick={onAnalyzeClick}
         matchDate={selectedDate ? selectedDate.format("YYYY-MM-DD") : null}
       />
     </>
