@@ -53,6 +53,8 @@ function App() {
     predictionsLoading,
     predictionMode,
     setPredictionMode,
+    goalMode,
+    setGoalMode,
     scoreThreshold,
     setScoreThreshold,
     over15Threshold,
@@ -122,6 +124,8 @@ function App() {
         predictions={predictions}
         predictionMode={predictionMode}
         onPredictionModeChange={setPredictionMode}
+        goalMode={goalMode}
+        onGoalModeChange={setGoalMode}
         scoreThreshold={scoreThreshold}
         onScoreThresholdChange={setScoreThreshold}
         over15Threshold={over15Threshold}

@@ -4,6 +4,7 @@ import { formatDate } from "../../../utils/dateUtils";
 import { allMatchesSynced } from "../../matches/utils/matchUtils";
 
 const DEFAULT_PREDICTION_MODE = "gate";
+const DEFAULT_GOAL_MODE = "light";
 const DEFAULT_SCORE_THRESHOLD = "10";
 const DEFAULT_OVER15_THRESHOLD = "7";
 const DEFAULT_OVER25_THRESHOLD = "11";
@@ -25,6 +26,7 @@ function usePredictions(selectedDate, selectedLeagues, matches) {
   const [predictions, setPredictions] = useState([]);
   const [predictionsLoading, setPredictionsLoading] = useState(false);
   const [predictionMode, setPredictionMode] = useState(DEFAULT_PREDICTION_MODE);
+  const [goalMode, setGoalMode] = useState(DEFAULT_GOAL_MODE);
   const [scoreThreshold, setScoreThreshold] = useState(DEFAULT_SCORE_THRESHOLD);
   const [over15Threshold, setOver15Threshold] = useState(
     DEFAULT_OVER15_THRESHOLD,
@@ -48,6 +50,7 @@ function usePredictions(selectedDate, selectedLeagues, matches) {
     selectedDate,
     selectedLeagues,
     predictionMode,
+    goalMode,
     scoreThreshold,
     over15Threshold,
     over25Threshold,
@@ -60,6 +63,7 @@ function usePredictions(selectedDate, selectedLeagues, matches) {
       const formattedDate = formatDate(selectedDate);
       const response = await fetchPredictions(formattedDate, selectedLeagues, {
         mode: predictionMode,
+        goalMode,
         threshold: normalizeThreshold(scoreThreshold, 10),
         over15Threshold: normalizeThreshold(over15Threshold, 7),
         over25Threshold: normalizeThreshold(over25Threshold, 11),
@@ -79,6 +83,8 @@ function usePredictions(selectedDate, selectedLeagues, matches) {
     predictionsLoading,
     predictionMode,
     setPredictionMode,
+    goalMode,
+    setGoalMode,
     scoreThreshold,
     setScoreThreshold,
     over15Threshold,

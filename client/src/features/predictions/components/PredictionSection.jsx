@@ -19,6 +19,8 @@ function PredictionSection({
   predictions,
   predictionMode,
   onPredictionModeChange,
+  goalMode,
+  onGoalModeChange,
   scoreThreshold,
   onScoreThresholdChange,
   over15Threshold,
@@ -60,6 +62,26 @@ function PredictionSection({
             >
               <ToggleButton value="gate">Gate</ToggleButton>
               <ToggleButton value="score">Score</ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
+
+          <Box>
+            <Typography
+              variant="subtitle2"
+              sx={{ mb: 0.75, color: "text.secondary" }}
+            >
+              Goal Mode
+            </Typography>
+            <ToggleButtonGroup
+              value={goalMode}
+              exclusive
+              size="small"
+              onChange={(_, value) => {
+                if (value) onGoalModeChange(value);
+              }}
+            >
+              <ToggleButton value="light">Light</ToggleButton>
+              <ToggleButton value="strict">Strict</ToggleButton>
             </ToggleButtonGroup>
           </Box>
 
@@ -128,6 +150,7 @@ function PredictionSection({
         predictions={predictions}
         loading={predictionsLoading}
         mode={predictionMode}
+        goalMode={goalMode}
         threshold={scoreThreshold}
         over15Threshold={over15Threshold}
         over25Threshold={over25Threshold}

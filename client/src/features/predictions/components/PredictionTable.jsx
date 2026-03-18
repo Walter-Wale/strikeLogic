@@ -269,6 +269,7 @@ export default function PredictionTable({
   predictions = [],
   loading = false,
   mode = "gate",
+  goalMode = "light",
   threshold = "10",
   over15Threshold = "7",
   over25Threshold = "11",
@@ -280,6 +281,7 @@ export default function PredictionTable({
   // Timestamp bumped on every successful save - triggers PastTicketsTab to refetch
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const isScoreMode = mode === "score";
+  const isStrictGoalMode = goalMode === "strict";
   const thresholdLabel = threshold === "" || threshold == null ? "10" : threshold;
   const over15ThresholdValue = normalizeNumericThreshold(over15Threshold, 7);
   const over25ThresholdValue = normalizeNumericThreshold(over25Threshold, 11);
@@ -358,6 +360,12 @@ export default function PredictionTable({
           size="small"
           color={isScoreMode ? "primary" : "default"}
           variant={isScoreMode ? "filled" : "outlined"}
+        />
+        <Chip
+          label={`Goal ${isStrictGoalMode ? "Strict" : "Light"}`}
+          size="small"
+          color={isStrictGoalMode ? "warning" : "default"}
+          variant={isStrictGoalMode ? "filled" : "outlined"}
         />
         {isScoreMode && (
           <Chip
