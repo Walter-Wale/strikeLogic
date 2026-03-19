@@ -61,17 +61,18 @@ function normalizeNumericThreshold(value, fallback) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function isOver15BandMatch(goalScore, over15Threshold, over25Threshold) {
+function isLightModeOver15Match(goalScore, over15Threshold, over25Threshold) {
   return goalScore > over15Threshold && goalScore < over25Threshold;
 }
 
-function isOver25BandMatch(goalScore, over25Threshold) {
+function isLightModeOver25Match(goalScore, over25Threshold) {
   return goalScore > over25Threshold;
 }
 
 function buildColumns(
   mode,
   onAnalyzeClick,
+  goalMode,
   activeSubTab,
   over15Threshold,
   over25Threshold,
@@ -200,11 +201,13 @@ function buildColumns(
         headerAlign: "center",
         renderCell: (params) =>
           renderGoalMarketChip(
-            isOver15BandMatch(
-              params.row.goalScore,
-              over15Threshold,
-              over25Threshold,
-            ),
+            goalMode === "strict"
+              ? Boolean(params.row.over15)
+              : isLightModeOver15Match(
+                  params.row.goalScore,
+                  over15Threshold,
+                  over25Threshold,
+                ),
             "O1.5",
           ),
         sortable: false,
@@ -223,7 +226,9 @@ function buildColumns(
         headerAlign: "center",
         renderCell: (params) =>
           renderGoalMarketChip(
-            isOver25BandMatch(params.row.goalScore, over25Threshold),
+            goalMode === "strict"
+              ? Boolean(params.row.over25)
+              : isLightModeOver25Match(params.row.goalScore, over25Threshold),
             "O2.5",
           ),
         sortable: false,
@@ -291,14 +296,18 @@ export default function PredictionTable({
     Boolean(prediction.predictedWinner),
   );
   const over15Predictions = predictions.filter((prediction) =>
-    isOver15BandMatch(
-      prediction.goalScore,
-      over15ThresholdValue,
-      over25ThresholdValue,
-    ),
+    goalMode === "strict"
+      ? prediction.over15 === true
+      : isLightModeOver15Match(
+          prediction.goalScore,
+          over15ThresholdValue,
+          over25ThresholdValue,
+        ),
   );
   const over25Predictions = predictions.filter((prediction) =>
-    isOver25BandMatch(prediction.goalScore, over25ThresholdValue),
+    goalMode === "strict"
+      ? prediction.over25 === true
+      : isLightModeOver25Match(prediction.goalScore, over25ThresholdValue),
   );
 
   let filteredPredictions = winnerPredictions;
@@ -314,6 +323,7 @@ export default function PredictionTable({
   const columns = buildColumns(
     mode,
     onAnalyzeClick,
+    goalMode,
     activeSubTab,
     over15ThresholdValue,
     over25ThresholdValue,
@@ -378,13 +388,21 @@ export default function PredictionTable({
           />
         )}
         <Chip
-          label={`O1.5 > ${over15ThresholdLabel} < ${over25ThresholdLabel}`}
+          label={
+            goalMode === "strict"
+              ? `O1.5 > ${over15ThresholdLabel}`
+              : `O1.5 > ${over15ThresholdLabel} < ${over25ThresholdLabel}`
+          }
           size="small"
           color={activeSubTab === "over15" ? "success" : "default"}
           variant={activeSubTab === "over15" ? "filled" : "outlined"}
         />
         <Chip
-          label={`O2.5 > ${over25ThresholdLabel}`}
+          label={
+            goalMode === "strict"
+              ? "O2.5 Top 30% of O1.5 pool"
+              : `O2.5 > ${over25ThresholdLabel}`
+          }
           size="small"
           color={activeSubTab === "over25" ? "success" : "default"}
           variant={activeSubTab === "over25" ? "filled" : "outlined"}
@@ -449,9 +467,11 @@ export default function PredictionTable({
                 ? "No predictions met the selected scoring threshold."
                 : "No strong home-team predictions found for the selected matches.")}
             {activeSubTab === "over15" &&
-              "No matches fell between the Over 1.5 and Over 2.5 thresholds."}
+              "No matches cleared the Over 1.5 entry threshold."}
             {activeSubTab === "over25" &&
-              "No matches exceeded the Over 2.5 threshold."}
+              (goalMode === "strict"
+                ? "No matches made the top-30% cut for Over 2.5."
+                : "No matches exceeded the Over 2.5 threshold.")}
           </Typography>
         ) : (
           <DataGrid

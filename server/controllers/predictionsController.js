@@ -27,12 +27,7 @@ function passesGateSystem({
   return true;
 }
 
-function calculateScore({
-  formWins,
-  formLosses,
-  h2hHomeWins,
-  h2hTotalLosses,
-}) {
+function calculateScore({ formWins, formLosses, h2hHomeWins, h2hTotalLosses }) {
   let score = 0;
 
   // FORM
@@ -64,6 +59,21 @@ function getScoreConfidence(score) {
   if (score >= 15) return "HIGH";
   if (score >= 10) return "MEDIUM";
   return "LOW";
+}
+
+function compareStrictGoalCandidates(a, b) {
+  if (b.goalScore !== a.goalScore) {
+    return b.goalScore - a.goalScore;
+  }
+
+  const timeA = a.matchTime || "";
+  const timeB = b.matchTime || "";
+  const timeCompare = timeA.localeCompare(timeB);
+  if (timeCompare !== 0) {
+    return timeCompare;
+  }
+
+  return (a.matchId || 0) - (b.matchId || 0);
 }
 
 function getAvgGoals(records) {
@@ -129,49 +139,73 @@ function calculateGoalScore({ HOME_FORM, AWAY_FORM, DIRECT_H2H }) {
   return score;
 }
 
-function calculateGoalScoreStrict({
-  HOME_FORM,
-  AWAY_FORM,
-  DIRECT_H2H,
-  homeTeam,
-  awayTeam,
-}) {
-  let score = 0;
-
-  const homeOnly = filterHomeMatches(HOME_FORM, homeTeam);
-  const awayOnly = filterAwayMatches(AWAY_FORM, awayTeam);
-  const homeAvg = getAvgGoals(homeOnly);
-  const awayAvg = getAvgGoals(awayOnly);
-  const h2hAvg = getAvgGoals(DIRECT_H2H);
-  const combinedAvg = (homeAvg + awayAvg + h2hAvg) / 3;
-  const validH2H = DIRECT_H2H.filter(
-    (record) => record.homeScore !== null && record.awayScore !== null,
+function calculateGoalScoreStrict({ HOME_FORM, AWAY_FORM, DIRECT_H2H }) {
+  const allMatches = [...HOME_FORM, ...AWAY_FORM, ...DIRECT_H2H].filter(
+    (r) => r.homeScore !== null && r.awayScore !== null,
   );
 
-  if (combinedAvg >= 3.5) score += 10;
-  else if (combinedAvg >= 3.0) score += 7;
-  else if (combinedAvg >= 2.5) score += 3;
-  else score -= 7;
+  // ❌ Not enough data → reject
+  if (allMatches.length < 6) return -5;
 
-  const highScoringMatches = validH2H.filter(
-    (record) => record.homeScore + record.awayScore >= 3,
+  const totalMatches = allMatches.length;
+
+  const totalGoals = allMatches.reduce(
+    (sum, r) => sum + r.homeScore + r.awayScore,
+    0,
+  );
+
+  const combinedAvg = totalGoals / totalMatches;
+
+  const highScoring = allMatches.filter(
+    (r) => r.homeScore + r.awayScore >= 3,
   ).length;
 
-  if (highScoringMatches >= 4) score += 6;
-  else if (highScoringMatches >= 3) score += 4;
-  else if (highScoringMatches >= 2) score += 2;
-  else score -= 5;
-
-  const lowScoringMatches = validH2H.filter(
-    (record) => record.homeScore + record.awayScore <= 1,
+  const lowScoring = allMatches.filter(
+    (r) => r.homeScore + r.awayScore <= 1,
   ).length;
 
-  if (lowScoringMatches >= 2) score -= 8;
+  const highRate = highScoring / totalMatches;
+  const lowRate = lowScoring / totalMatches;
 
-  if (homeAvg >= 1.7) score += 3;
-  if (awayAvg >= 1.4) score += 3;
+  // 🔥 HARD FILTERS (THIS IS THE KEY FIX)
 
-  return score;
+  // Too many low scoring games → reject
+  if (lowRate > 0.25) return -5;
+
+  // Not enough high scoring consistency → reject
+  if (highRate < 0.55) return -5;
+
+  // Average too low → reject
+  if (combinedAvg < 2.8) return -5;
+
+  // 🔥 H2H VALIDATION (extra strictness)
+  const h2hMatches = DIRECT_H2H.filter(
+    (r) => r.homeScore !== null && r.awayScore !== null,
+  );
+
+  if (h2hMatches.length >= 3) {
+    const h2hHighRate =
+      h2hMatches.filter((r) => r.homeScore + r.awayScore >= 3).length /
+      h2hMatches.length;
+
+    if (h2hHighRate < 0.5) return -5;
+  }
+
+  // ✅ SCORING (simple, no inflation)
+  let score = 0;
+
+  // Average strength
+  if (combinedAvg >= 3.2) score += 4;
+  if (combinedAvg >= 3.6) score += 6;
+
+  // Frequency strength
+  if (highRate >= 0.6) score += 4;
+  if (highRate >= 0.7) score += 6;
+
+  // Low-risk bonus
+  if (lowRate <= 0.2) score += 2;
+
+  return Math.min(score, 15);
 }
 
 /**
@@ -255,11 +289,7 @@ async function getPredictions(req, res) {
 
     for (const match of syncedMatches) {
       const h2hData = await databaseService.getH2HData(match.id);
-      const {
-        HOME_FORM = [],
-        AWAY_FORM = [],
-        DIRECT_H2H = [],
-      } = h2hData;
+      const { HOME_FORM = [], AWAY_FORM = [], DIRECT_H2H = [] } = h2hData;
 
       const homeTeam = match.homeTeam;
       const awayTeam = match.awayTeam;
@@ -336,11 +366,38 @@ async function getPredictions(req, res) {
         goalMode,
         score: score !== null ? Number(score.toFixed(2)) : null,
         confidence,
-        over15,
-        over25,
+        over15: false,
+        over25: false,
         over15Threshold,
         over25Threshold,
         goalScore: Number(goalScore.toFixed(2)),
+      });
+    }
+
+    if (goalMode === "strict") {
+      const over15Pool = predictions.filter(
+        (prediction) => prediction.goalScore > over15Threshold,
+      );
+      const over25Count =
+        over15Pool.length > 0 ? Math.ceil(over15Pool.length * 0.3) : 0;
+      const over25Ids = new Set(
+        [...over15Pool]
+          .sort(compareStrictGoalCandidates)
+          .slice(0, over25Count)
+          .map((prediction) => prediction.matchId),
+      );
+
+      predictions.forEach((prediction) => {
+        const qualifiesForGoalPool = prediction.goalScore > over15Threshold;
+        prediction.over25 = over25Ids.has(prediction.matchId);
+        prediction.over15 = qualifiesForGoalPool && !prediction.over25;
+      });
+    } else {
+      predictions.forEach((prediction) => {
+        prediction.over15 =
+          prediction.goalScore > over15Threshold &&
+          prediction.goalScore < over25Threshold;
+        prediction.over25 = prediction.goalScore > over25Threshold;
       });
     }
 
