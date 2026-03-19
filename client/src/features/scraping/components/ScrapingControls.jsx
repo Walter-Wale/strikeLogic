@@ -9,7 +9,6 @@ import {
   ToggleButton,
   ToggleButtonGroup,
 } from "@mui/material";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import DatePicker from "../../../components/common/DatePicker";
 import LeagueSelector from "../../../components/common/LeagueSelector";
 
@@ -20,7 +19,6 @@ function ScrapingControls({
   onLeaguesChange,
   allMatches,
   loading,
-  onLoadReady,
   onStartH2H,
   scrapeMode,
   onScrapeModeChange,
@@ -78,16 +76,6 @@ function ScrapingControls({
               disabled={selectedLeagues.length === 0 || loading}
             >
               Start H2H Analysis
-            </Button>
-            <Button
-              variant="outlined"
-              color="success"
-              size="large"
-              onClick={onLoadReady}
-              disabled={loading}
-              startIcon={<CheckCircleIcon />}
-            >
-              Load Ready Matches (H2H Complete)
             </Button>
           </Box>
         </Grid>

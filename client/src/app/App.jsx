@@ -34,6 +34,7 @@ function App() {
   const [selectedDate, setSelectedDate] = useState(dayjs());
   const [selectedLeagues, setSelectedLeagues] = useState([]);
   const [scrapeMode, setScrapeMode] = useState("auto");
+  const [matchView, setMatchView] = useState("all");
 
   // Matches
   const {
@@ -42,8 +43,7 @@ function App() {
     loading,
     error,
     setError,
-    handleLoadReadyMatches,
-  } = useMatches(selectedDate, () => setChainCompleteDetected(true));
+  } = useMatches(selectedDate);
 
   const { matches } = useFilteredMatches(allMatches, selectedLeagues);
 
@@ -83,6 +83,11 @@ function App() {
     scrapeMode,
   );
 
+  const handleStartH2HWithTabSwitch = React.useCallback(() => {
+    setMatchView("synced");
+    handleStartH2H();
+  }, [handleStartH2H]);
+
   return (
     <PageContainer>
       <Header />
@@ -94,8 +99,7 @@ function App() {
         onLeaguesChange={setSelectedLeagues}
         allMatches={allMatches}
         loading={loading}
-        onLoadReady={handleLoadReadyMatches}
-        onStartH2H={handleStartH2H}
+        onStartH2H={handleStartH2HWithTabSwitch}
         scrapeMode={scrapeMode}
         onScrapeModeChange={setScrapeMode}
       />
@@ -111,9 +115,11 @@ function App() {
       <LogConsole />
 
       <MatchSection
-        matches={matches}
+        matches={allMatches}
         loading={loading}
         onAnalyzeClick={handleAnalyzeClick}
+        activeTab={matchView}
+        onTabChange={setMatchView}
       />
 
       <PredictionSection

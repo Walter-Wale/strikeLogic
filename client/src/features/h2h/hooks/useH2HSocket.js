@@ -18,8 +18,7 @@ function useH2HSocket(setAllMatches, setChainCompleteDetected) {
     initializeSocket();
 
     // Real-time H2H sync: mark individual matches as synced when server notifies us.
-    // If the match isn't in state yet (e.g. newly scraped after Load Ready Matches),
-    // fetch it from the server and append it to the list.
+    // If the match isn't in state yet, fetch it from the server and append it.
     const unsubscribeH2H = subscribeToH2HSynced(({ matchId }) => {
       setAllMatches((prev) => {
         const exists = prev.some((m) => m.id === matchId);

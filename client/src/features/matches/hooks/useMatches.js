@@ -1,17 +1,13 @@
 import { useState, useEffect } from "react";
-import {
-  fetchMatchesByDate,
-  fetchSyncedMatches,
-} from "../../../services/apiService";
+import { fetchMatchesByDate } from "../../../services/apiService";
 import { formatDate } from "../../../utils/dateUtils";
 
 /**
  * Manages all-matches state, loading, and fetch handlers.
  * @param {import('dayjs').Dayjs} selectedDate
- * @param {Function} onChainComplete - called when ready matches confirm H2H is done
- * @returns {{ allMatches, setAllMatches, loading, error, setError, handleFetchMatches, handleLoadReadyMatches }}
+ * @returns {{ allMatches, setAllMatches, loading, error, setError, handleFetchMatches }}
  */
-function useMatches(selectedDate, onChainComplete) {
+function useMatches(selectedDate) {
   const [allMatches, setAllMatches] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -52,29 +48,6 @@ function useMatches(selectedDate, onChainComplete) {
     }
   };
 
-  // Handler: Load only already-synced (H2H complete) matches from DB — no scraping
-  const handleLoadReadyMatches = async () => {
-    setLoading(true);
-    setError(null);
-    setAllMatches([]);
-    try {
-      const formattedDate = formatDate(selectedDate);
-      const response = await fetchSyncedMatches(formattedDate);
-      if (response.success) {
-        setAllMatches(response.data || []);
-        if ((response.count || 0) > 0) {
-          onChainComplete();
-        }
-      } else {
-        setError(response.error || "Failed to load ready matches");
-      }
-    } catch (err) {
-      setError(err.message || "An error occurred");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return {
     allMatches,
     setAllMatches,
@@ -82,7 +55,6 @@ function useMatches(selectedDate, onChainComplete) {
     error,
     setError,
     handleFetchMatches,
-    handleLoadReadyMatches,
   };
 }
 
