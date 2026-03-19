@@ -30,6 +30,7 @@ async function getSyncedMatches(req, res) {
     }
 
     const dbService = new DatabaseService();
+    await dbService.cleanupStaleData();
     const matches = await dbService.getSyncedMatchesByDate(date);
 
     return res.json({
@@ -72,6 +73,8 @@ async function getMatchesByDate(req, res) {
 
     // Get Socket.io instance from app
     const io = req.app.get("io");
+
+    await new DatabaseService().cleanupStaleData();
 
     // Initialize scraper service
     const scraperService = new ScraperService(io);

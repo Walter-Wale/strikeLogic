@@ -8,6 +8,53 @@ const db = require("../models");
 const { Op } = require("sequelize");
 
 class DatabaseService {
+  _formatLocalDate(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  _formatLocalTime(date) {
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    const seconds = String(date.getSeconds()).padStart(2, "0");
+    return `${hours}:${minutes}:${seconds}`;
+  }
+
+  _normalizeDateOnly(value) {
+    if (!value) return null;
+
+    if (typeof value === "string") {
+      return value.slice(0, 10);
+    }
+
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      return this._formatLocalDate(value);
+    }
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return null;
+    }
+
+    return this._formatLocalDate(parsed);
+  }
+
+  _normalizeTimeOnly(value) {
+    if (!value) return null;
+
+    const raw = String(value).trim();
+    const match = raw.match(/^(\d{2}):(\d{2})(?::(\d{2}))?/);
+
+    if (!match) {
+      return null;
+    }
+
+    const [, hours, minutes, seconds = "00"] = match;
+    return `${hours}:${minutes}:${seconds}`;
+  }
+
   /**
    * Get or create a team by name
    * @param {string} teamName - Team name
@@ -476,25 +523,60 @@ class DatabaseService {
   }
 
   /**
-   * Delete all data tied to past dates and orphaned teams.
+   * Delete all matches that have already started, plus their H2H rows and
+   * any teams orphaned by those deletions.
    * Deletion order respects FK constraints:
    *   1. h2h_history (references matches)
    *   2. matches
    *   3. teams orphaned after the above deletions
+   * A same-day match is deleted once its kickoff time is before the server's
+   * current time. If a match has no stored time, it is only deleted when its
+   * date is before today.
+   * @param {Date|string} cutoff - Server timestamp used as the "already started" cutoff
    * @returns {Promise<{h2hDeleted: number, matchesDeleted: number, teamsDeleted: number}>}
    */
-  async cleanupStaleData() {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+  async cleanupStaleData(cutoff = new Date()) {
+    const effectiveCutoff =
+      cutoff instanceof Date ? new Date(cutoff) : new Date(cutoff);
+
+    if (Number.isNaN(effectiveCutoff.getTime())) {
+      throw new Error("Invalid cleanup cutoff supplied");
+    }
+
+    const cutoffDate = this._formatLocalDate(effectiveCutoff);
+    const cutoffTime = this._formatLocalTime(effectiveCutoff);
 
     try {
-      // Step 1: find IDs of all past matches
+      // Step 1: find IDs of all matches that have already started by the
+      // current server timestamp.
       const staleMatches = await db.Match.findAll({
-        attributes: ["id"],
-        where: { match_date: { [Op.lt]: today } },
+        attributes: ["id", "match_date", "match_time"],
       });
 
-      const staleMatchIds = staleMatches.map((m) => m.id);
+      const staleMatchIds = staleMatches
+        .filter((match) => {
+          const matchDate = this._normalizeDateOnly(match.match_date);
+          const matchTime = this._normalizeTimeOnly(match.match_time);
+
+          if (!matchDate) {
+            return false;
+          }
+
+          if (matchDate < cutoffDate) {
+            return true;
+          }
+
+          if (matchDate > cutoffDate) {
+            return false;
+          }
+
+          if (!matchTime) {
+            return false;
+          }
+
+          return matchTime < cutoffTime;
+        })
+        .map((match) => match.id);
 
       let h2hDeleted = 0;
       let matchesDeleted = 0;
@@ -534,12 +616,12 @@ class DatabaseService {
       }
 
       console.log(
-        `✓ Stale data cleanup complete — h2h_history: ${h2hDeleted} rows, matches: ${matchesDeleted} rows, teams: ${teamsDeleted} rows deleted`,
+        `Started-match cleanup complete at ${cutoffDate} ${cutoffTime} - h2h_history: ${h2hDeleted} rows, matches: ${matchesDeleted} rows, teams: ${teamsDeleted} rows deleted`,
       );
 
       return { h2hDeleted, matchesDeleted, teamsDeleted };
     } catch (error) {
-      console.error("Error during stale data cleanup:", error);
+      console.error("Error during started-match cleanup:", error);
       throw error;
     }
   }

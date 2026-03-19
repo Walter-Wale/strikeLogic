@@ -4,7 +4,13 @@
  */
 
 import React from "react";
-import { Autocomplete, TextField, Checkbox } from "@mui/material";
+import {
+  Autocomplete,
+  TextField,
+  Checkbox,
+  Box,
+  FormControlLabel,
+} from "@mui/material";
 import CheckBoxOutlineBlankIcon from "@mui/icons-material/CheckBoxOutlineBlank";
 import CheckBoxIcon from "@mui/icons-material/CheckBox";
 
@@ -45,43 +51,77 @@ const LeagueSelector = ({ value, onChange, matches }) => {
     return uniqueLeagues.sort((a, b) => a.localeCompare(b));
   }, [matches]);
 
+  const allLeaguesSelected =
+    availableLeagues.length > 0 && value.length === availableLeagues.length;
+  const someLeaguesSelected =
+    value.length > 0 && value.length < availableLeagues.length;
+
   return (
-    <Autocomplete
-      multiple
-      id="league-selector"
-      options={availableLeagues}
-      disableCloseOnSelect
-      value={value}
-      onChange={(event, newValue) => {
-        onChange(newValue);
-      }}
-      getOptionLabel={(option) => option}
-      renderOption={({ key, ...props }, option, { selected }) => (
-        <li key={key} {...props}>
-          <Checkbox
-            icon={icon}
-            checkedIcon={checkedIcon}
-            style={{ marginRight: 8 }}
-            checked={selected}
-          />
-          {option}
-        </li>
-      )}
-      renderInput={(params) => (
-        <TextField
-          {...params}
-          label="Filter by Leagues (Optional)"
-          placeholder="All leagues"
-          variant="outlined"
-          fullWidth
-        />
-      )}
+    <Box
       sx={{
-        "& .MuiAutocomplete-tag": {
-          maxWidth: "150px",
-        },
+        display: "flex",
+        alignItems: { xs: "stretch", sm: "flex-start" },
+        flexDirection: { xs: "column", sm: "row" },
+        gap: 2,
       }}
-    />
+    >
+      <Autocomplete
+        multiple
+        id="league-selector"
+        options={availableLeagues}
+        disableCloseOnSelect
+        value={value}
+        onChange={(event, newValue) => {
+          onChange(newValue);
+        }}
+        getOptionLabel={(option) => option}
+        renderOption={({ key, ...props }, option, { selected }) => (
+          <li key={key} {...props}>
+            <Checkbox
+              icon={icon}
+              checkedIcon={checkedIcon}
+              style={{ marginRight: 8 }}
+              checked={selected}
+            />
+            {option}
+          </li>
+        )}
+        renderInput={(params) => (
+          <TextField
+            {...params}
+            label="Filter by Leagues (Optional)"
+            placeholder="All leagues"
+            variant="outlined"
+            fullWidth
+          />
+        )}
+        sx={{
+          flex: 1,
+          minWidth: 0,
+          "& .MuiAutocomplete-tag": {
+            maxWidth: "150px",
+          },
+        }}
+      />
+      <FormControlLabel
+        control={
+          <Checkbox
+            checked={allLeaguesSelected}
+            indeterminate={someLeaguesSelected}
+            onChange={(event) => {
+              onChange(event.target.checked ? availableLeagues : []);
+            }}
+          />
+        }
+        label="Select all"
+        sx={{
+          mt: { xs: -0.5, sm: 0.5 },
+          mr: 0,
+          whiteSpace: "nowrap",
+          alignItems: "center",
+        }}
+      />
+    </Box>
   );
 };
 
