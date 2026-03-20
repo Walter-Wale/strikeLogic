@@ -266,14 +266,14 @@ const H2HModal = ({
 
             <TabPanel value={activeTab} index={0}>
               <Typography variant="h6" gutterBottom>
-                {homeTeam} - Recent Home Matches
+                {homeTeam} - Recent Matches
               </Typography>
               {renderMatchTable(h2hData.HOME_FORM, "HOME_FORM")}
             </TabPanel>
 
             <TabPanel value={activeTab} index={1}>
               <Typography variant="h6" gutterBottom>
-                {awayTeam} - Recent Away Matches
+                {awayTeam} - Recent Matches
               </Typography>
               {renderMatchTable(h2hData.AWAY_FORM, "AWAY_FORM")}
             </TabPanel>

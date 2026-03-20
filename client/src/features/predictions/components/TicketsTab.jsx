@@ -76,10 +76,6 @@ function addPredictionToTicket(ticket, prediction) {
   ticket.usedMatchIds.add(getTicketMatchKey(prediction));
 }
 
-function countWinnerPicks(ticket) {
-  return ticket.picks.filter((pick) => pick.ticketMarket === "winner").length;
-}
-
 function countMarketPicks(ticket, market) {
   return ticket.picks.filter((pick) => pick.ticketMarket === market).length;
 }
