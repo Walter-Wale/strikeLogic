@@ -44,6 +44,54 @@ function buildPool(predictions, maxAppearances) {
   return pool;
 }
 
+function getTicketMatchKey(prediction) {
+  return (
+    prediction.matchId ??
+    `${prediction.homeTeam}-${prediction.awayTeam}-${prediction.matchDate}-${prediction.matchTime}`
+  );
+}
+
+function createTicketBucket() {
+  return {
+    picks: [],
+    usedMatchIds: new Set(),
+  };
+}
+
+function addPredictionToTicket(ticket, prediction) {
+  ticket.picks.push(prediction);
+  ticket.usedMatchIds.add(getTicketMatchKey(prediction));
+}
+
+function countWinnerPicks(ticket) {
+  return ticket.picks.filter((pick) => pick.ticketMarket === "winner").length;
+}
+
+function countMarketPicks(ticket, market) {
+  return ticket.picks.filter((pick) => pick.ticketMarket === market).length;
+}
+
+function placePredictionsAcrossTickets(tickets, predictions, ticketSize, sorter) {
+  predictions.forEach((prediction) => {
+    const matchKey = getTicketMatchKey(prediction);
+
+    const eligibleTickets = tickets.filter(
+      (ticket) =>
+        ticket.picks.length < ticketSize && !ticket.usedMatchIds.has(matchKey),
+    );
+
+    if (eligibleTickets.length > 0) {
+      eligibleTickets.sort(sorter);
+      addPredictionToTicket(eligibleTickets[0], prediction);
+      return;
+    }
+
+    const overflowTicket = createTicketBucket();
+    addPredictionToTicket(overflowTicket, prediction);
+    tickets.push(overflowTicket);
+  });
+}
+
 function getTicketPickMeta(prediction) {
   if (
     prediction.predictedWinner &&
@@ -108,38 +156,54 @@ function buildTicketPredictions({
 }
 
 function buildTickets(pool, size) {
-  const remaining = [...pool];
-  const tickets = [];
   const ticketSize = Math.max(1, size);
+  if (pool.length === 0) return [];
 
-  while (remaining.length > 0) {
-    const ticket = [];
-    const usedMatchIds = new Set();
+  const initialTicketCount = Math.max(1, Math.ceil(pool.length / ticketSize));
+  const tickets = Array.from({ length: initialTicketCount }, () =>
+    createTicketBucket(),
+  );
+  const marketPlacementOrder = ["winner", "over15", "over25"];
 
-    for (let index = 0; index < remaining.length && ticket.length < ticketSize; ) {
-      const candidate = remaining[index];
-      const matchKey =
-        candidate.matchId ??
-        `${candidate.homeTeam}-${candidate.awayTeam}-${candidate.matchDate}-${candidate.matchTime}`;
+  marketPlacementOrder.forEach((market) => {
+    const marketPredictions = pool.filter(
+      (prediction) => prediction.ticketMarket === market,
+    );
 
-      if (usedMatchIds.has(matchKey)) {
-        index += 1;
-        continue;
-      }
-
-      ticket.push(candidate);
-      usedMatchIds.add(matchKey);
-      remaining.splice(index, 1);
+    if (marketPredictions.length === 0) {
+      return;
     }
 
-    if (ticket.length === 0) {
-      ticket.push(remaining.shift());
-    }
+    placePredictionsAcrossTickets(
+      tickets,
+      marketPredictions,
+      ticketSize,
+      (left, right) =>
+        countMarketPicks(left, market) - countMarketPicks(right, market) ||
+        left.picks.length - right.picks.length,
+    );
+  });
 
-    tickets.push(ticket);
-  }
+  return tickets
+    .map((ticket) => ticket.picks)
+    .filter((ticket) => ticket.length > 0);
+}
 
-  return tickets;
+function getMarketDistributionSummary(tickets, market) {
+  if (tickets.length === 0) return null;
+
+  const winnerCounts = tickets.map(
+    (ticket) => ticket.filter((pick) => pick.ticketMarket === market).length,
+  );
+  const totalWinners = winnerCounts.reduce((sum, count) => sum + count, 0);
+
+  return {
+    totalPicks: totalWinners,
+    minimum: Math.min(...winnerCounts),
+    maximum: Math.max(...winnerCounts),
+    average: totalWinners / tickets.length,
+    ticketCount: tickets.length,
+  };
 }
 
 function TicketCard({ matches, idx }) {
@@ -277,6 +341,9 @@ export default function TicketsTab({
   });
   const noData = ticketPredictions.length === 0;
   const perTicket = Math.max(1, teamsPerTicket);
+  const winnerDistribution = getMarketDistributionSummary(tickets, "winner");
+  const over15Distribution = getMarketDistributionSummary(tickets, "over15");
+  const over25Distribution = getMarketDistributionSummary(tickets, "over25");
   const ticketPoolSignature = [
     winnerPredictions
       .map((prediction) => `${prediction.matchId}:${prediction.predictedWinner}`)
@@ -493,13 +560,39 @@ export default function TicketsTab({
       )}
 
       {tickets.length > 0 && (
-        <Grid container spacing={2}>
-          {tickets.map((matches, idx) => (
-            <Grid item xs={12} sm={6} md={4} key={idx}>
-              <TicketCard matches={matches} idx={idx} />
-            </Grid>
-          ))}
-        </Grid>
+        <>
+          {winnerDistribution && winnerDistribution.totalPicks > 0 && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Match winner picks are distributed across {winnerDistribution.ticketCount} ticket
+              {winnerDistribution.ticketCount !== 1 ? "s" : ""}: min{" "}
+              {winnerDistribution.minimum}, max {winnerDistribution.maximum},
+              average {winnerDistribution.average.toFixed(1)} per ticket.
+            </Alert>
+          )}
+          {over15Distribution && over15Distribution.totalPicks > 0 && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Over 1.5 picks are distributed across {over15Distribution.ticketCount} ticket
+              {over15Distribution.ticketCount !== 1 ? "s" : ""}: min{" "}
+              {over15Distribution.minimum}, max {over15Distribution.maximum},
+              average {over15Distribution.average.toFixed(1)} per ticket.
+            </Alert>
+          )}
+          {over25Distribution && over25Distribution.totalPicks > 0 && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Over 2.5 picks are distributed across {over25Distribution.ticketCount} ticket
+              {over25Distribution.ticketCount !== 1 ? "s" : ""}: min{" "}
+              {over25Distribution.minimum}, max {over25Distribution.maximum},
+              average {over25Distribution.average.toFixed(1)} per ticket.
+            </Alert>
+          )}
+          <Grid container spacing={2}>
+            {tickets.map((matches, idx) => (
+              <Grid item xs={12} sm={6} md={4} key={idx}>
+                <TicketCard matches={matches} idx={idx} />
+              </Grid>
+            ))}
+          </Grid>
+        </>
       )}
     </Box>
   );

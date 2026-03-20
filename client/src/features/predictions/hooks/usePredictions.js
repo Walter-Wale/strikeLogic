@@ -12,8 +12,8 @@ import {
   mergeUnique,
 } from "../utils/predictionScopeUtils";
 
-const DEFAULT_PREDICTION_MODE = "gate";
-const DEFAULT_GOAL_MODE = "light";
+const DEFAULT_PREDICTION_MODE = "score";
+const DEFAULT_GOAL_MODE = "strict";
 const DEFAULT_SCORE_THRESHOLD = "10";
 const DEFAULT_OVER15_THRESHOLD = "7";
 const DEFAULT_OVER25_THRESHOLD = "11";
