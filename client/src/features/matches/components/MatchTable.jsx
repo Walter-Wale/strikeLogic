@@ -3,14 +3,34 @@
  * Displays matches in a data grid with analyze action
  */
 
-import React from "react";
+import React, { useState } from "react";
 import { DataGrid } from "@mui/x-data-grid";
-import { Button, Chip } from "@mui/material";
+import { Button, Chip, TextField, InputAdornment, Box } from "@mui/material";
 import AnalyticsIcon from "@mui/icons-material/Analytics";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
+import SearchIcon from "@mui/icons-material/Search";
 
 const MatchTable = ({ matches, loading, onAnalyzeClick }) => {
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredMatches = React.useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return matches;
+    return matches.filter((match) => {
+      const league =
+        match.league?.name ||
+        match.League?.name ||
+        match.leagueName ||
+        match.league_name ||
+        "";
+      return (
+        match.homeTeam?.toLowerCase().includes(q) ||
+        match.awayTeam?.toLowerCase().includes(q) ||
+        league.toLowerCase().includes(q)
+      );
+    });
+  }, [matches, searchQuery]);
   // Define columns for the data grid
   const columns = [
     {
@@ -162,30 +182,46 @@ const MatchTable = ({ matches, loading, onAnalyzeClick }) => {
   ];
 
   return (
-    <div style={{ height: 600, width: "100%" }}>
-      <DataGrid
-        rows={matches}
-        columns={columns}
-        pageSizeOptions={[10, 25, 50]}
-        loading={loading}
-        disableSelectionOnClick
-        autoHeight
-        getRowId={(row) => row.id}
-        sx={{
-          "& .MuiDataGrid-cell:focus": {
-            outline: "none",
-          },
-          "& .MuiDataGrid-row:hover": {
-            backgroundColor: "action.hover",
-          },
+    <Box>
+      <TextField
+        placeholder="Search team or league…"
+        size="small"
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        InputProps={{
+          startAdornment: (
+            <InputAdornment position="start">
+              <SearchIcon fontSize="small" />
+            </InputAdornment>
+          ),
         }}
-        initialState={{
-          pagination: {
-            paginationModel: { pageSize: 10, page: 0 },
-          },
-        }}
+        sx={{ mb: 2, width: 320 }}
       />
-    </div>
+      <div style={{ height: 600, width: "100%" }}>
+        <DataGrid
+          rows={filteredMatches}
+          columns={columns}
+          pageSizeOptions={[10, 25, 50]}
+          loading={loading}
+          disableSelectionOnClick
+          autoHeight
+          getRowId={(row) => row.id}
+          sx={{
+            "& .MuiDataGrid-cell:focus": {
+              outline: "none",
+            },
+            "& .MuiDataGrid-row:hover": {
+              backgroundColor: "action.hover",
+            },
+          }}
+          initialState={{
+            pagination: {
+              paginationModel: { pageSize: 10, page: 0 },
+            },
+          }}
+        />
+      </div>
+    </Box>
   );
 };
 
