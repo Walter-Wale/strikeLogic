@@ -322,6 +322,8 @@ export default function TicketsTab({
   const [teamsPerTicket, setTeamsPerTicket] = useState(5);
   const [maxAppearances, setMaxAppearances] = useState(1);
   const [multiCount, setMultiCount] = useState(10);
+  const [highConfidenceWinnersOnly, setHighConfidenceWinnersOnly] =
+    useState(false);
   const [includeOver15, setIncludeOver15] = useState(false);
   const [includeOver25, setIncludeOver25] = useState(false);
   const [tickets, setTickets] = useState([]);
@@ -332,8 +334,11 @@ export default function TicketsTab({
     severity: "success",
   });
 
+  const filteredWinnerPredictions = highConfidenceWinnersOnly
+    ? winnerPredictions.filter((prediction) => prediction.confidence === "HIGH")
+    : winnerPredictions;
   const ticketPredictions = buildTicketPredictions({
-    winnerPredictions,
+    winnerPredictions: filteredWinnerPredictions,
     over15Predictions,
     over25Predictions,
     includeOver15,
@@ -345,11 +350,12 @@ export default function TicketsTab({
   const over15Distribution = getMarketDistributionSummary(tickets, "over15");
   const over25Distribution = getMarketDistributionSummary(tickets, "over25");
   const ticketPoolSignature = [
-    winnerPredictions
+    filteredWinnerPredictions
       .map((prediction) => `${prediction.matchId}:${prediction.predictedWinner}`)
       .join("|"),
     over15Predictions.map((prediction) => prediction.matchId).join("|"),
     over25Predictions.map((prediction) => prediction.matchId).join("|"),
+    highConfidenceWinnersOnly,
     includeOver15,
     includeOver25,
     teamsPerTicket,
@@ -437,6 +443,17 @@ export default function TicketsTab({
           }}
         />
         <FormGroup row sx={{ gap: 1 }}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={highConfidenceWinnersOnly}
+                onChange={(event) =>
+                  setHighConfidenceWinnersOnly(event.target.checked)
+                }
+              />
+            }
+            label={`High confidence winners only (${filteredWinnerPredictions.length}/${winnerPredictions.length})`}
+          />
           <FormControlLabel
             control={
               <Checkbox
