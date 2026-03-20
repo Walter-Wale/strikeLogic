@@ -334,8 +334,12 @@ export default function TicketsTab({
     severity: "success",
   });
 
+  const highConfidenceWinnerPredictions = winnerPredictions.filter(
+    (prediction) => prediction.confidence === "HIGH",
+  );
+  const hasHighConfidenceWinners = highConfidenceWinnerPredictions.length > 0;
   const filteredWinnerPredictions = highConfidenceWinnersOnly
-    ? winnerPredictions.filter((prediction) => prediction.confidence === "HIGH")
+    ? highConfidenceWinnerPredictions
     : winnerPredictions;
   const ticketPredictions = buildTicketPredictions({
     winnerPredictions: filteredWinnerPredictions,
@@ -365,6 +369,12 @@ export default function TicketsTab({
   useEffect(() => {
     setTickets([]);
   }, [ticketPoolSignature]);
+
+  useEffect(() => {
+    if (!hasHighConfidenceWinners && highConfidenceWinnersOnly) {
+      setHighConfidenceWinnersOnly(false);
+    }
+  }, [hasHighConfidenceWinners, highConfidenceWinnersOnly]);
 
   function handleRandomize() {
     if (noData) return;
@@ -447,12 +457,13 @@ export default function TicketsTab({
             control={
               <Checkbox
                 checked={highConfidenceWinnersOnly}
+                disabled={!hasHighConfidenceWinners}
                 onChange={(event) =>
                   setHighConfidenceWinnersOnly(event.target.checked)
                 }
               />
             }
-            label={`High confidence winners only (${filteredWinnerPredictions.length}/${winnerPredictions.length})`}
+            label={`High confidence winners only (${highConfidenceWinnerPredictions.length}/${winnerPredictions.length})`}
           />
           <FormControlLabel
             control={
