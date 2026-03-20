@@ -125,7 +125,12 @@ function selectTopPercentage(predictions, percentage) {
   return [...predictions].sort(compareGoalPredictions).slice(0, keepCount);
 }
 
-function placePredictionsAcrossTickets(tickets, predictions, ticketSize, sorter) {
+function placePredictionsAcrossTickets(
+  tickets,
+  predictions,
+  ticketSize,
+  sorter,
+) {
   predictions.forEach((prediction) => {
     const matchKey = getTicketMatchKey(prediction);
 
@@ -419,8 +424,15 @@ export default function TicketsTab({
   const over25Distribution = getMarketDistributionSummary(tickets, "over25");
   const ticketPoolSignature = [
     filteredWinnerPredictions
-      .map((prediction) => `${prediction.matchId}:${prediction.predictedWinner}`)
+      .map(
+        (prediction) => `${prediction.matchId}:${prediction.predictedWinner}`,
+      )
       .join("|"),
+<<<<<<< HEAD
+=======
+    over15Predictions.map((prediction) => prediction.matchId).join("|"),
+    over25Predictions.map((prediction) => prediction.matchId).join("|"),
+>>>>>>> ee874f9 (feat: enhance TicketsTab with new filtering options for Over 1.5 and Over 2.5 predictions)
     filteredOver15Predictions
       .map((prediction) => `${prediction.matchId}:${prediction.goalScore}`)
       .join("|"),
@@ -557,7 +569,13 @@ export default function TicketsTab({
               )
             }
             inputProps={{ min: 1, max: 100 }}
+<<<<<<< HEAD
             disabled={!includeOver15 || !topOver15Only || over15Predictions.length === 0}
+=======
+            disabled={
+              !includeOver15 || !topOver15Only || over15Predictions.length === 0
+            }
+>>>>>>> ee874f9 (feat: enhance TicketsTab with new filtering options for Over 1.5 and Over 2.5 predictions)
             sx={{ width: 110 }}
           />
           <FormControlLabel
@@ -590,7 +608,13 @@ export default function TicketsTab({
               )
             }
             inputProps={{ min: 1, max: 100 }}
+<<<<<<< HEAD
             disabled={!includeOver25 || !topOver25Only || over25Predictions.length === 0}
+=======
+            disabled={
+              !includeOver25 || !topOver25Only || over25Predictions.length === 0
+            }
+>>>>>>> ee874f9 (feat: enhance TicketsTab with new filtering options for Over 1.5 and Over 2.5 predictions)
             sx={{ width: 110 }}
           />
           <FormControlLabel
@@ -664,7 +688,8 @@ export default function TicketsTab({
               sx={{ ml: "auto" }}
             >
               {tickets.length} ticket{tickets.length !== 1 ? "s" : ""} &bull;{" "}
-              {ticketPredictions.length * Math.max(1, maxAppearances)} match slots
+              {ticketPredictions.length * Math.max(1, maxAppearances)} match
+              slots
             </Typography>
           </>
         )}
@@ -691,7 +716,8 @@ export default function TicketsTab({
           color="text.secondary"
           sx={{ textAlign: "center", py: 6 }}
         >
-          No ticket picks available. Run predictions first or enable goal markets.
+          No ticket picks available. Run predictions first or enable goal
+          markets.
         </Typography>
       )}
 
@@ -711,7 +737,8 @@ export default function TicketsTab({
         <>
           {winnerDistribution && winnerDistribution.totalPicks > 0 && (
             <Alert severity="info" sx={{ mb: 2 }}>
-              Match winner picks are distributed across {winnerDistribution.ticketCount} ticket
+              Match winner picks are distributed across{" "}
+              {winnerDistribution.ticketCount} ticket
               {winnerDistribution.ticketCount !== 1 ? "s" : ""}: min{" "}
               {winnerDistribution.minimum}, max {winnerDistribution.maximum},
               average {winnerDistribution.average.toFixed(1)} per ticket.
@@ -719,7 +746,8 @@ export default function TicketsTab({
           )}
           {over15Distribution && over15Distribution.totalPicks > 0 && (
             <Alert severity="info" sx={{ mb: 2 }}>
-              Over 1.5 picks are distributed across {over15Distribution.ticketCount} ticket
+              Over 1.5 picks are distributed across{" "}
+              {over15Distribution.ticketCount} ticket
               {over15Distribution.ticketCount !== 1 ? "s" : ""}: min{" "}
               {over15Distribution.minimum}, max {over15Distribution.maximum},
               average {over15Distribution.average.toFixed(1)} per ticket.
@@ -727,7 +755,8 @@ export default function TicketsTab({
           )}
           {over25Distribution && over25Distribution.totalPicks > 0 && (
             <Alert severity="info" sx={{ mb: 2 }}>
-              Over 2.5 picks are distributed across {over25Distribution.ticketCount} ticket
+              Over 2.5 picks are distributed across{" "}
+              {over25Distribution.ticketCount} ticket
               {over25Distribution.ticketCount !== 1 ? "s" : ""}: min{" "}
               {over25Distribution.minimum}, max {over25Distribution.maximum},
               average {over25Distribution.average.toFixed(1)} per ticket.
