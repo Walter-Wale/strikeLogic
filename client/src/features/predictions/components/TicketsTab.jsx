@@ -380,9 +380,9 @@ export default function TicketsTab({
   const [highConfidenceWinnersOnly, setHighConfidenceWinnersOnly] =
     useState(false);
   const [topOver15Only, setTopOver15Only] = useState(false);
-  const [topOver15Percentage, setTopOver15Percentage] = useState(20);
+  const [topOver15Percentage, setTopOver15Percentage] = useState(30);
   const [topOver25Only, setTopOver25Only] = useState(false);
-  const [topOver25Percentage, setTopOver25Percentage] = useState(20);
+  const [topOver25Percentage, setTopOver25Percentage] = useState(30);
   const [includeOver15, setIncludeOver15] = useState(false);
   const [includeOver25, setIncludeOver25] = useState(false);
   const [tickets, setTickets] = useState([]);

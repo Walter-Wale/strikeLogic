@@ -159,7 +159,9 @@ export async function fetchPredictions(date, leagues = [], options = {}) {
 
     if (params.mode === "score") {
       const parsedThreshold = Number(options.threshold);
-      params.threshold = Number.isFinite(parsedThreshold) ? parsedThreshold : 10;
+      params.threshold = Number.isFinite(parsedThreshold)
+        ? parsedThreshold
+        : 10;
     }
 
     const parsedOver15Threshold = Number(options.over15Threshold);

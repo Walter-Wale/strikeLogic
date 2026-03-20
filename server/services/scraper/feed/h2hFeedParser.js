@@ -8,9 +8,9 @@
  *   Section marker:      any ~XX÷ where XX ≠ KC  (e.g. ~ZA÷, ~SA÷)
  *
  * The feed always delivers three ordered sections:
- *   1st group of ~KC÷ blocks → DIRECT_H2H
- *   2nd group of ~KC÷ blocks → HOME_FORM
- *   3rd group of ~KC÷ blocks → AWAY_FORM
+ *   1st group of ~KC÷ blocks → HOME_FORM
+ *   2nd group of ~KC÷ blocks → AWAY_FORM
+ *   3rd group of ~KC÷ blocks → DIRECT_H2H
  *
  * Section boundaries are detected by watching for non-KC markers that appear
  * AFTER a run of KC match records — no team-name guessing needed.

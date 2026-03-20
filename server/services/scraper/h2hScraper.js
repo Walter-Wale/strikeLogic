@@ -216,8 +216,8 @@ async function scrapeH2HAndForm(matchId, flashscoreId, io, dbService) {
       "success",
     );
 
-    // Return success result
-    return { success: true, count: allH2HData.length };
+    // Return the grouped data so the modal can render immediately on first open
+    return await dbService.getH2HData(matchId);
   } catch (error) {
     // Close browser if it was opened
     if (browser) {
@@ -297,7 +297,6 @@ async function scrapeH2HViaFeed(match, io, dbService) {
 
     // The parser already tagged each record with its sectionType (DIRECT_H2H /
     // HOME_FORM / AWAY_FORM) based on the feed's own section boundaries.
-    // No team-name matching needed — avoids nickname/alias mismatches entirely.
     const allH2HData = parsed.map((entry) => {
       let matchDate = null;
       if (entry.timestamp) {
@@ -319,16 +318,44 @@ async function scrapeH2HViaFeed(match, io, dbService) {
       };
     });
 
-    // Remove discarded records (neither team matched)
     const validH2HData = allH2HData.filter(Boolean);
+
+    // For DIRECT_H2H records, validate that both teams in the record are
+    // the parent match teams. When two teams have never met, FlashScore still
+    // emits a 3rd feed section (for the home team's own cup history) — those
+    // records must NOT be stored as head-to-head data.
+    const homeNorm = match.homeTeam.toLowerCase();
+    const awayNorm = match.awayTeam.toLowerCase();
+    const isParentTeam = (name) => {
+      const n = name.toLowerCase();
+      return (
+        n.includes(homeNorm) ||
+        homeNorm.includes(n) ||
+        n.includes(awayNorm) ||
+        awayNorm.includes(n)
+      );
+    };
+
+    const directH2HRaw = validH2HData.filter(
+      (d) => d.sectionType === "DIRECT_H2H",
+    );
+    const directH2HValid = directH2HRaw.filter(
+      (d) => isParentTeam(d.homeTeam) && isParentTeam(d.awayTeam),
+    );
+
+    if (directH2HRaw.length > 0 && directH2HValid.length === 0) {
+      emitLog(
+        io,
+        `⚠️ Feed: All ${directH2HRaw.length} DIRECT_H2H record(s) discarded — neither team matches ${match.homeTeam} vs ${match.awayTeam}. Teams have no H2H history.`,
+        "warning",
+      );
+    }
 
     // Limit each section to 10 records
     const limitedH2HData = [
       ...validH2HData.filter((d) => d.sectionType === "HOME_FORM").slice(0, 10),
       ...validH2HData.filter((d) => d.sectionType === "AWAY_FORM").slice(0, 10),
-      ...validH2HData
-        .filter((d) => d.sectionType === "DIRECT_H2H")
-        .slice(0, 10),
+      ...directH2HValid.slice(0, 10),
     ];
 
     const homeCount = limitedH2HData.filter(
