@@ -16,7 +16,6 @@ import LogConsole from "../components/common/LogConsole";
 
 // Features
 import useMatches from "../features/matches/hooks/useMatches";
-import useFilteredMatches from "../features/matches/hooks/useFilteredMatches";
 import MatchSection from "../features/matches/components/MatchSection";
 
 import useH2HSocket from "../features/h2h/hooks/useH2HSocket";
@@ -45,8 +44,6 @@ function App() {
     setError,
   } = useMatches(selectedDate);
 
-  const { matches } = useFilteredMatches(allMatches, selectedLeagues);
-
   // Predictions (needs matches for allMatchesSynced check)
   const {
     predictions,
@@ -55,6 +52,19 @@ function App() {
     setPredictionMode,
     goalMode,
     setGoalMode,
+    predictionScope,
+    setPredictionScope,
+    favoriteCountries,
+    setFavoriteCountries,
+    additionalLeagues,
+    setAdditionalLeagues,
+    availableCountries,
+    additionalLeagueOptions,
+    favoriteCountryLeagues,
+    predictionPreviewLeagues,
+    predictionTargetMatches,
+    syncedMatchCount,
+    canRunPredictions,
     scoreThreshold,
     setScoreThreshold,
     over15Threshold,
@@ -62,9 +72,8 @@ function App() {
     over25Threshold,
     setOver25Threshold,
     setChainCompleteDetected,
-    h2hChainComplete,
     handleRunPredictions,
-  } = usePredictions(selectedDate, selectedLeagues, matches);
+  } = usePredictions(selectedDate, allMatches);
 
   const {
     h2hModalOpen,
@@ -123,7 +132,19 @@ function App() {
       />
 
       <PredictionSection
-        h2hChainComplete={h2hChainComplete}
+        canRunPredictions={canRunPredictions}
+        syncedMatchCount={syncedMatchCount}
+        predictionScope={predictionScope}
+        onPredictionScopeChange={setPredictionScope}
+        favoriteCountries={favoriteCountries}
+        onFavoriteCountriesChange={setFavoriteCountries}
+        availableCountries={availableCountries}
+        additionalLeagues={additionalLeagues}
+        onAdditionalLeaguesChange={setAdditionalLeagues}
+        additionalLeagueOptions={additionalLeagueOptions}
+        favoriteCountryLeagueCount={favoriteCountryLeagues.length}
+        predictionPreviewLeagues={predictionPreviewLeagues}
+        predictionTargetMatchCount={predictionTargetMatches.length}
         predictionsLoading={predictionsLoading}
         onRunPredictions={handleRunPredictions}
         onAnalyzeClick={handleAnalyzeClick}

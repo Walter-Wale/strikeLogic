@@ -3,7 +3,7 @@
  * Displays home-team win predictions produced by the selected prediction mode.
  */
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box,
   Button,
@@ -310,6 +310,37 @@ export default function PredictionTable({
       : isLightModeOver25Match(prediction.goalScore, over25ThresholdValue),
   );
 
+  useEffect(() => {
+    const counts = {
+      winners: winnerPredictions.length,
+      over15: over15Predictions.length,
+      over25: over25Predictions.length,
+    };
+
+    if (counts[activeSubTab] > 0) {
+      return;
+    }
+
+    if (counts.winners > 0) {
+      setActiveSubTab("winners");
+      return;
+    }
+
+    if (counts.over15 > 0) {
+      setActiveSubTab("over15");
+      return;
+    }
+
+    if (counts.over25 > 0) {
+      setActiveSubTab("over25");
+    }
+  }, [
+    activeSubTab,
+    winnerPredictions.length,
+    over15Predictions.length,
+    over25Predictions.length,
+  ]);
+
   let filteredPredictions = winnerPredictions;
 
   if (activeSubTab === "over15") {
@@ -440,19 +471,19 @@ export default function PredictionTable({
             variant={activeSubTab === "winners" ? "contained" : "outlined"}
             onClick={() => setActiveSubTab("winners")}
           >
-            Match Winners
+            Match Winners ({winnerPredictions.length})
           </Button>
           <Button
             variant={activeSubTab === "over15" ? "contained" : "outlined"}
             onClick={() => setActiveSubTab("over15")}
           >
-            Over 1.5
+            Over 1.5 ({over15Predictions.length})
           </Button>
           <Button
             variant={activeSubTab === "over25" ? "contained" : "outlined"}
             onClick={() => setActiveSubTab("over25")}
           >
-            Over 2.5
+            Over 2.5 ({over25Predictions.length})
           </Button>
         </Box>
 
