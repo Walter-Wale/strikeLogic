@@ -44,6 +44,19 @@ function buildPool(predictions, maxAppearances) {
   return pool;
 }
 
+function normalizePercentage(value, fallback = 20) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(100, Math.max(1, parsed));
+}
+
+function getConfidenceRank(confidence) {
+  if (confidence === "HIGH") return 3;
+  if (confidence === "MEDIUM") return 2;
+  if (confidence === "LOW") return 1;
+  return 0;
+}
+
 function getTicketMatchKey(prediction) {
   return (
     prediction.matchId ??
@@ -69,6 +82,47 @@ function countWinnerPicks(ticket) {
 
 function countMarketPicks(ticket, market) {
   return ticket.picks.filter((pick) => pick.ticketMarket === market).length;
+}
+
+function compareGoalPredictions(left, right) {
+  const leftGoalScore = Number(left.goalScore) || 0;
+  const rightGoalScore = Number(right.goalScore) || 0;
+  if (rightGoalScore !== leftGoalScore) {
+    return rightGoalScore - leftGoalScore;
+  }
+
+  const leftConfidence = getConfidenceRank(left.confidence);
+  const rightConfidence = getConfidenceRank(right.confidence);
+  if (rightConfidence !== leftConfidence) {
+    return rightConfidence - leftConfidence;
+  }
+
+  const leftScore = Number(left.score) || 0;
+  const rightScore = Number(right.score) || 0;
+  if (rightScore !== leftScore) {
+    return rightScore - leftScore;
+  }
+
+  const leftTime = left.matchTime || "";
+  const rightTime = right.matchTime || "";
+  const timeCompare = leftTime.localeCompare(rightTime);
+  if (timeCompare !== 0) {
+    return timeCompare;
+  }
+
+  return (left.matchId || 0) - (right.matchId || 0);
+}
+
+function selectTopPercentage(predictions, percentage) {
+  if (predictions.length === 0) return [];
+
+  const normalizedPercentage = normalizePercentage(percentage, 20);
+  const keepCount = Math.max(
+    1,
+    Math.ceil((predictions.length * normalizedPercentage) / 100),
+  );
+
+  return [...predictions].sort(compareGoalPredictions).slice(0, keepCount);
 }
 
 function placePredictionsAcrossTickets(tickets, predictions, ticketSize, sorter) {
@@ -324,6 +378,10 @@ export default function TicketsTab({
   const [multiCount, setMultiCount] = useState(10);
   const [highConfidenceWinnersOnly, setHighConfidenceWinnersOnly] =
     useState(false);
+  const [topOver15Only, setTopOver15Only] = useState(false);
+  const [topOver15Percentage, setTopOver15Percentage] = useState(20);
+  const [topOver25Only, setTopOver25Only] = useState(false);
+  const [topOver25Percentage, setTopOver25Percentage] = useState(20);
   const [includeOver15, setIncludeOver15] = useState(false);
   const [includeOver25, setIncludeOver25] = useState(false);
   const [tickets, setTickets] = useState([]);
@@ -341,10 +399,16 @@ export default function TicketsTab({
   const filteredWinnerPredictions = highConfidenceWinnersOnly
     ? highConfidenceWinnerPredictions
     : winnerPredictions;
+  const filteredOver15Predictions = topOver15Only
+    ? selectTopPercentage(over15Predictions, topOver15Percentage)
+    : over15Predictions;
+  const filteredOver25Predictions = topOver25Only
+    ? selectTopPercentage(over25Predictions, topOver25Percentage)
+    : over25Predictions;
   const ticketPredictions = buildTicketPredictions({
     winnerPredictions: filteredWinnerPredictions,
-    over15Predictions,
-    over25Predictions,
+    over15Predictions: filteredOver15Predictions,
+    over25Predictions: filteredOver25Predictions,
     includeOver15,
     includeOver25,
   });
@@ -357,9 +421,17 @@ export default function TicketsTab({
     filteredWinnerPredictions
       .map((prediction) => `${prediction.matchId}:${prediction.predictedWinner}`)
       .join("|"),
-    over15Predictions.map((prediction) => prediction.matchId).join("|"),
-    over25Predictions.map((prediction) => prediction.matchId).join("|"),
+    filteredOver15Predictions
+      .map((prediction) => `${prediction.matchId}:${prediction.goalScore}`)
+      .join("|"),
+    filteredOver25Predictions
+      .map((prediction) => `${prediction.matchId}:${prediction.goalScore}`)
+      .join("|"),
     highConfidenceWinnersOnly,
+    topOver15Only,
+    topOver15Percentage,
+    topOver25Only,
+    topOver25Percentage,
     includeOver15,
     includeOver25,
     teamsPerTicket,
@@ -472,7 +544,31 @@ export default function TicketsTab({
                 onChange={(event) => setIncludeOver15(event.target.checked)}
               />
             }
-            label={`Include Over 1.5 (${over15Predictions.length})`}
+            label={`Include Over 1.5 (${filteredOver15Predictions.length}/${over15Predictions.length})`}
+          />
+          <TextField
+            label="Top % O1.5"
+            type="number"
+            size="small"
+            value={topOver15Percentage}
+            onChange={(event) =>
+              setTopOver15Percentage(
+                normalizePercentage(event.target.value, 20),
+              )
+            }
+            inputProps={{ min: 1, max: 100 }}
+            disabled={!includeOver15 || !topOver15Only || over15Predictions.length === 0}
+            sx={{ width: 110 }}
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={topOver15Only}
+                disabled={!includeOver15 || over15Predictions.length === 0}
+                onChange={(event) => setTopOver15Only(event.target.checked)}
+              />
+            }
+            label="Top % only O1.5"
           />
           <FormControlLabel
             control={
@@ -481,7 +577,31 @@ export default function TicketsTab({
                 onChange={(event) => setIncludeOver25(event.target.checked)}
               />
             }
-            label={`Include Over 2.5 (${over25Predictions.length})`}
+            label={`Include Over 2.5 (${filteredOver25Predictions.length}/${over25Predictions.length})`}
+          />
+          <TextField
+            label="Top % O2.5"
+            type="number"
+            size="small"
+            value={topOver25Percentage}
+            onChange={(event) =>
+              setTopOver25Percentage(
+                normalizePercentage(event.target.value, 20),
+              )
+            }
+            inputProps={{ min: 1, max: 100 }}
+            disabled={!includeOver25 || !topOver25Only || over25Predictions.length === 0}
+            sx={{ width: 110 }}
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={topOver25Only}
+                disabled={!includeOver25 || over25Predictions.length === 0}
+                onChange={(event) => setTopOver25Only(event.target.checked)}
+              />
+            }
+            label="Top % only O2.5"
           />
         </FormGroup>
 
