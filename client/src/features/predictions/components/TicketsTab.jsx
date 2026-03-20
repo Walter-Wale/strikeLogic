@@ -428,11 +428,8 @@ export default function TicketsTab({
         (prediction) => `${prediction.matchId}:${prediction.predictedWinner}`,
       )
       .join("|"),
-<<<<<<< HEAD
-=======
     over15Predictions.map((prediction) => prediction.matchId).join("|"),
     over25Predictions.map((prediction) => prediction.matchId).join("|"),
->>>>>>> ee874f9 (feat: enhance TicketsTab with new filtering options for Over 1.5 and Over 2.5 predictions)
     filteredOver15Predictions
       .map((prediction) => `${prediction.matchId}:${prediction.goalScore}`)
       .join("|"),
@@ -569,13 +566,9 @@ export default function TicketsTab({
               )
             }
             inputProps={{ min: 1, max: 100 }}
-<<<<<<< HEAD
-            disabled={!includeOver15 || !topOver15Only || over15Predictions.length === 0}
-=======
             disabled={
               !includeOver15 || !topOver15Only || over15Predictions.length === 0
             }
->>>>>>> ee874f9 (feat: enhance TicketsTab with new filtering options for Over 1.5 and Over 2.5 predictions)
             sx={{ width: 110 }}
           />
           <FormControlLabel
@@ -608,13 +601,9 @@ export default function TicketsTab({
               )
             }
             inputProps={{ min: 1, max: 100 }}
-<<<<<<< HEAD
-            disabled={!includeOver25 || !topOver25Only || over25Predictions.length === 0}
-=======
             disabled={
               !includeOver25 || !topOver25Only || over25Predictions.length === 0
             }
->>>>>>> ee874f9 (feat: enhance TicketsTab with new filtering options for Over 1.5 and Over 2.5 predictions)
             sx={{ width: 110 }}
           />
           <FormControlLabel
