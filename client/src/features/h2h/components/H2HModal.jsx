@@ -159,6 +159,8 @@ const H2HModal = ({
                 teamContext = "home";
               if (sectionType === "AWAY_FORM" && match.awayTeam === awayTeam)
                 teamContext = "away";
+              if (sectionType === "DIRECT_H2H" && match.homeTeam === homeTeam)
+                teamContext = "home";
 
               const resultColor = getResultColor(
                 match.homeScore,
@@ -192,7 +194,7 @@ const H2HModal = ({
                   <TableCell
                     sx={{
                       fontWeight:
-                        match.awayTeam === awayTeam ? "bold" : "normal",
+                        match.awayTeam === awayTeam && sectionType !== "DIRECT_H2H" ? "bold" : "normal",
                     }}
                   >
                     {match.awayTeam}
