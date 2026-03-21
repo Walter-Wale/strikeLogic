@@ -84,7 +84,12 @@ function PredictionSection({
         }}
       >
         <Box
-          sx={{ display: "flex", gap: 2, alignItems: "center", flexWrap: "wrap" }}
+          sx={{
+            display: "flex",
+            gap: 2,
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
         >
           <Box>
             <Typography
@@ -103,6 +108,7 @@ function PredictionSection({
             >
               <ToggleButton value="gate">Gate</ToggleButton>
               <ToggleButton value="score">Score</ToggleButton>
+              <ToggleButton value="form">Form</ToggleButton>
             </ToggleButtonGroup>
           </Box>
 
@@ -277,25 +283,22 @@ function PredictionSection({
           {predictionScope === PREDICTION_SCOPE_OPTIONS.FAVORITE_COUNTRIES &&
             favoriteCountries.length === 0 && (
               <Alert severity="warning" sx={{ mt: 1 }}>
-                Add at least one favourite country to use this prediction source.
+                Add at least one favourite country to use this prediction
+                source.
               </Alert>
             )}
           {predictionScope ===
             PREDICTION_SCOPE_OPTIONS.FAVORITES_PLUS_LEAGUES &&
             favoriteCountries.length === 0 &&
             additionalLeagues.length === 0 && (
-            <Alert severity="warning" sx={{ mt: 1 }}>
-              Add a favourite country or choose additional leagues for this prediction source.
-            </Alert>
-          )}
+              <Alert severity="warning" sx={{ mt: 1 }}>
+                Add a favourite country or choose additional leagues for this
+                prediction source.
+              </Alert>
+            )}
         </Box>
 
-        <Tooltip
-          title={
-            !canRunPredictions ? runDisabledReason : ""
-          }
-          arrow
-        >
+        <Tooltip title={!canRunPredictions ? runDisabledReason : ""} arrow>
           <span>
             <Button
               variant="contained"

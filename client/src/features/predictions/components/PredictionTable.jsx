@@ -236,7 +236,7 @@ function buildColumns(
     ];
   }
 
-  if (mode !== "score") {
+  if (mode !== "score" && mode !== "form") {
     return winnerColumns;
   }
 
@@ -287,7 +287,8 @@ export default function PredictionTable({
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const isScoreMode = mode === "score";
   const isStrictGoalMode = goalMode === "strict";
-  const thresholdLabel = threshold === "" || threshold == null ? "10" : threshold;
+  const thresholdLabel =
+    threshold === "" || threshold == null ? "10" : threshold;
   const over15ThresholdValue = normalizeNumericThreshold(over15Threshold, 7);
   const over25ThresholdValue = normalizeNumericThreshold(over25Threshold, 11);
   const over15ThresholdLabel = String(over15ThresholdValue);
@@ -399,10 +400,16 @@ export default function PredictionTable({
           )}
         </Typography>
         <Chip
-          label={isScoreMode ? "Score Mode" : "Gate Mode"}
+          label={
+            mode === "score"
+              ? "Score Mode"
+              : mode === "form"
+                ? "Form Mode"
+                : "Gate Mode"
+          }
           size="small"
-          color={isScoreMode ? "primary" : "default"}
-          variant={isScoreMode ? "filled" : "outlined"}
+          color={mode === "score" || mode === "form" ? "primary" : "default"}
+          variant={mode === "score" || mode === "form" ? "filled" : "outlined"}
         />
         <Chip
           label={`Goal ${isStrictGoalMode ? "Strict" : "Light"}`}
