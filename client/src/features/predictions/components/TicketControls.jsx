@@ -62,6 +62,7 @@ function TicketControls({
   tickets,
   saving,
   ticketPredictions,
+  playedTicketIndices,
   // Snackbar
   snackbar,
   setSnackbar,
@@ -248,10 +249,10 @@ function TicketControls({
                 )
               }
               onClick={handleSave}
-              disabled={saving}
+              disabled={saving || playedTicketIndices.size === 0}
               sx={{ height: 40 }}
             >
-              Save Tickets
+              Save Played ({playedTicketIndices.size})
             </Button>
             <Typography
               variant="body2"

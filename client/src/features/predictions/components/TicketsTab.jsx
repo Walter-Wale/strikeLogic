@@ -20,7 +20,8 @@ export default function TicketsTab({
     onSaved,
   });
 
-  const { noData, tickets } = ticketState;
+  const { noData, tickets, playedTicketIndices, togglePlayedTicket } =
+    ticketState;
 
   return (
     <Box sx={{ pt: 2 }}>
@@ -60,7 +61,12 @@ export default function TicketsTab({
           <Grid container spacing={2}>
             {tickets.map((matches, idx) => (
               <Grid item xs={12} sm={6} md={4} key={idx}>
-                <TicketCard matches={matches} idx={idx} />
+                <TicketCard
+                  matches={matches}
+                  idx={idx}
+                  isPlayed={playedTicketIndices.has(idx)}
+                  onTogglePlayed={() => togglePlayedTicket(idx)}
+                />
               </Grid>
             ))}
           </Grid>

@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { buildTicketPool } from "../controllers/ticketController";
 import { buildPool, buildTickets, shuffle } from "../utils/ticketBuilder";
-import { saveTickets } from "../../../services/apiService";
+import { saveTickets, fetchPlayedMatches } from "../../../services/apiService";
 
 export function useTickets({
   winnerPredictions,
@@ -24,6 +24,10 @@ export function useTickets({
   const [includeOver25, setIncludeOver25] = useState(false);
   const [tickets, setTickets] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [playedTicketIndices, setPlayedTicketIndices] = useState(
+    () => new Set(),
+  );
+  const [playedMatchKeys, setPlayedMatchKeys] = useState(() => new Set());
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: "",
@@ -41,6 +45,7 @@ export function useTickets({
     winnerPredictions,
     over15Predictions,
     over25Predictions,
+    playedMatchKeys,
     highConfidenceWinnersOnly,
     overOddsWinnersOnly,
     topOver15Only,
@@ -83,6 +88,7 @@ export function useTickets({
 
   useEffect(() => {
     setTickets([]);
+    setPlayedTicketIndices(new Set());
   }, [ticketPoolSignature]);
 
   useEffect(() => {
@@ -90,6 +96,35 @@ export function useTickets({
       setHighConfidenceWinnersOnly(false);
     }
   }, [hasHighConfidenceWinners, highConfidenceWinnersOnly]);
+
+  const loadPlayedMatchKeys = useCallback(async () => {
+    if (!matchDate) return;
+    try {
+      const result = await fetchPlayedMatches(matchDate);
+      const keys = new Set(
+        (result.data || []).map((m) => `${m.homeTeam}|${m.awayTeam}`),
+      );
+      setPlayedMatchKeys(keys);
+    } catch {
+      // non-critical — silently ignore
+    }
+  }, [matchDate]);
+
+  useEffect(() => {
+    loadPlayedMatchKeys();
+  }, [loadPlayedMatchKeys]);
+
+  function togglePlayedTicket(idx) {
+    setPlayedTicketIndices((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) {
+        next.delete(idx);
+      } else {
+        next.add(idx);
+      }
+      return next;
+    });
+  }
 
   function handleRandomize() {
     if (noData) return;
@@ -108,15 +143,21 @@ export function useTickets({
   }
 
   async function handleSave() {
-    if (tickets.length === 0) return;
+    if (playedTicketIndices.size === 0) return;
+    const playedTickets = tickets.filter((_, idx) =>
+      playedTicketIndices.has(idx),
+    );
     setSaving(true);
     try {
-      await saveTickets(matchDate, teamsPerTicket, tickets);
+      await saveTickets(matchDate, teamsPerTicket, playedTickets);
       setSnackbar({
         open: true,
-        message: `${tickets.length} ticket${tickets.length !== 1 ? "s" : ""} saved successfully!`,
+        message: `${playedTickets.length} played ticket${
+          playedTickets.length !== 1 ? "s" : ""
+        } saved successfully!`,
         severity: "success",
       });
+      await loadPlayedMatchKeys();
       if (onSaved) onSaved();
     } catch (err) {
       setSnackbar({
@@ -157,6 +198,8 @@ export function useTickets({
     saving,
     snackbar,
     setSnackbar,
+    playedTicketIndices,
+    togglePlayedTicket,
     filteredWinnerPredictions,
     filteredOver15Predictions,
     filteredOver25Predictions,

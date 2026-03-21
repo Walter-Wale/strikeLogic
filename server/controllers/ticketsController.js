@@ -151,9 +151,40 @@ async function deleteTicketBatch(req, res) {
   }
 }
 
+/**
+ * GET /tickets/played-matches?date=YYYY-MM-DD
+ * Returns distinct match identities that have been saved (played) for a date.
+ */
+async function getPlayedMatches(req, res) {
+  const { date } = req.query;
+  if (!date) {
+    return res
+      .status(400)
+      .json({ success: false, error: "date query param is required" });
+  }
+  try {
+    const items = await db.SavedTicketItem.findAll({
+      attributes: ["home_team", "away_team"],
+      where: { match_date: date },
+      raw: true,
+    });
+    const data = items.map((i) => ({
+      homeTeam: i.home_team,
+      awayTeam: i.away_team,
+    }));
+    return res.json({ success: true, data });
+  } catch (err) {
+    console.error("Error fetching played matches:", err);
+    return res
+      .status(500)
+      .json({ success: false, error: "Failed to fetch played matches" });
+  }
+}
+
 module.exports = {
   saveTickets,
   getTicketBatches,
   getTicketBatch,
   deleteTicketBatch,
+  getPlayedMatches,
 };

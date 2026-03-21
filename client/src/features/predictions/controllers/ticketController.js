@@ -9,10 +9,15 @@ function getWinnerOdds(prediction) {
   return null;
 }
 
+function makeMatchKey(p) {
+  return `${p.homeTeam}|${p.awayTeam}`;
+}
+
 export function buildTicketPool({
   winnerPredictions,
   over15Predictions,
   over25Predictions,
+  playedMatchKeys,
   highConfidenceWinnersOnly,
   overOddsWinnersOnly,
   topOver15Only,
@@ -22,6 +27,19 @@ export function buildTicketPool({
   includeOver15,
   includeOver25,
 }) {
+  // Exclude matches that have already been saved as played
+  if (playedMatchKeys && playedMatchKeys.size > 0) {
+    winnerPredictions = winnerPredictions.filter(
+      (p) => !playedMatchKeys.has(makeMatchKey(p)),
+    );
+    over15Predictions = over15Predictions.filter(
+      (p) => !playedMatchKeys.has(makeMatchKey(p)),
+    );
+    over25Predictions = over25Predictions.filter(
+      (p) => !playedMatchKeys.has(makeMatchKey(p)),
+    );
+  }
+
   const highConfidenceWinnerPredictions = winnerPredictions.filter(
     (prediction) => prediction.confidence === "HIGH",
   );

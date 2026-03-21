@@ -4,8 +4,10 @@ import {
   Card,
   CardContent,
   CardHeader,
+  Checkbox,
   Chip,
   Divider,
+  FormControlLabel,
   List,
   ListItem,
   ListItemText,
@@ -14,11 +16,15 @@ import {
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import { getTicketPickMeta } from "../utils/ticketFormatters";
 
-function TicketCard({ matches, idx }) {
+function TicketCard({ matches, idx, isPlayed, onTogglePlayed }) {
   return (
     <Card
       variant="outlined"
-      sx={{ height: "100%", borderColor: "primary.main", borderWidth: 1.5 }}
+      sx={{
+        height: "100%",
+        borderColor: isPlayed ? "success.main" : "primary.main",
+        borderWidth: 1.5,
+      }}
     >
       <CardHeader
         avatar={<EmojiEventsIcon sx={{ color: "warning.main" }} />}
@@ -28,6 +34,24 @@ function TicketCard({ matches, idx }) {
           </Typography>
         }
         subheader={`${matches.length} match${matches.length !== 1 ? "es" : ""}`}
+        action={
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={!!isPlayed}
+                onChange={onTogglePlayed}
+                color="success"
+                size="small"
+              />
+            }
+            label={
+              <Typography variant="caption" color="text.secondary">
+                Played
+              </Typography>
+            }
+            sx={{ mr: 0.5 }}
+          />
+        }
         sx={{ pb: 0, "& .MuiCardHeader-content": { overflow: "hidden" } }}
       />
       <Divider />

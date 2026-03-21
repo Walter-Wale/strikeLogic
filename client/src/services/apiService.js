@@ -211,6 +211,24 @@ export async function saveTickets(matchDate, teamsPerTicket, tickets) {
 }
 
 /**
+ * Fetch distinct played match identities for a given date.
+ * @param {string} date - YYYY-MM-DD
+ */
+export async function fetchPlayedMatches(date) {
+  try {
+    const response = await apiClient.get("/tickets/played-matches", {
+      params: { date },
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching played matches:", error);
+    throw new Error(
+      error.response?.data?.error || "Failed to fetch played matches.",
+    );
+  }
+}
+
+/**
  * Fetch all saved ticket batches (no items, newest first).
  */
 export async function fetchTicketBatches() {
