@@ -10,11 +10,12 @@ export function useTickets({
   matchDate,
   onSaved,
 }) {
-  const [teamsPerTicket, setTeamsPerTicket] = useState(5);
+  const [teamsPerTicket, setTeamsPerTicket] = useState(6);
   const [maxAppearances, setMaxAppearances] = useState(1);
   const [multiCount, setMultiCount] = useState(10);
   const [highConfidenceWinnersOnly, setHighConfidenceWinnersOnly] =
     useState(false);
+  const [overOddsWinnersOnly, setOverOddsWinnersOnly] = useState(false);
   const [topOver15Only, setTopOver15Only] = useState(false);
   const [topOver15Percentage, setTopOver15Percentage] = useState(30);
   const [topOver25Only, setTopOver25Only] = useState(false);
@@ -35,11 +36,13 @@ export function useTickets({
     filteredOver15Predictions,
     filteredOver25Predictions,
     highConfidenceWinnerPredictions,
+    overOddsWinnerPredictions,
   } = buildTicketPool({
     winnerPredictions,
     over15Predictions,
     over25Predictions,
     highConfidenceWinnersOnly,
+    overOddsWinnersOnly,
     topOver15Only,
     topOver15Percentage,
     topOver25Only,
@@ -67,6 +70,7 @@ export function useTickets({
       .map((prediction) => `${prediction.matchId}:${prediction.goalScore}`)
       .join("|"),
     highConfidenceWinnersOnly,
+    overOddsWinnersOnly,
     topOver15Only,
     topOver15Percentage,
     topOver25Only,
@@ -134,6 +138,9 @@ export function useTickets({
     setMultiCount,
     highConfidenceWinnersOnly,
     setHighConfidenceWinnersOnly,
+    overOddsWinnersOnly,
+    setOverOddsWinnersOnly,
+    overOddsWinnerPredictions,
     topOver15Only,
     setTopOver15Only,
     topOver15Percentage,

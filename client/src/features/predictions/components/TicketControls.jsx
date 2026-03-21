@@ -31,6 +31,9 @@ function TicketControls({
   setHighConfidenceWinnersOnly,
   hasHighConfidenceWinners,
   highConfidenceWinnerPredictions,
+  overOddsWinnersOnly,
+  setOverOddsWinnersOnly,
+  overOddsWinnerPredictions,
   winnerPredictions,
   // Over 1.5 options
   includeOver15,
@@ -113,6 +116,17 @@ function TicketControls({
               />
             }
             label={`High confidence winners only (${highConfidenceWinnerPredictions.length}/${winnerPredictions.length})`}
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={overOddsWinnersOnly}
+                onChange={(event) =>
+                  setOverOddsWinnersOnly(event.target.checked)
+                }
+              />
+            }
+            label={`Over 1.3 odd winners only (${overOddsWinnerPredictions.length}/${winnerPredictions.length})`}
           />
           <FormControlLabel
             control={

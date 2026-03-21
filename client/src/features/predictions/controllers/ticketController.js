@@ -1,11 +1,20 @@
 import { selectTopPercentage } from "../utils/ticketSelection";
 import { buildTicketPredictions } from "../utils/ticketBuilder";
 
+function getWinnerOdds(prediction) {
+  if (prediction.predictedWinner === prediction.homeTeam)
+    return prediction.oddsHome;
+  if (prediction.predictedWinner === prediction.awayTeam)
+    return prediction.oddsAway;
+  return null;
+}
+
 export function buildTicketPool({
   winnerPredictions,
   over15Predictions,
   over25Predictions,
   highConfidenceWinnersOnly,
+  overOddsWinnersOnly,
   topOver15Only,
   topOver15Percentage,
   topOver25Only,
@@ -16,9 +25,24 @@ export function buildTicketPool({
   const highConfidenceWinnerPredictions = winnerPredictions.filter(
     (prediction) => prediction.confidence === "HIGH",
   );
-  const filteredWinnerPredictions = highConfidenceWinnersOnly
-    ? highConfidenceWinnerPredictions
-    : winnerPredictions;
+  const overOddsWinnerPredictions = winnerPredictions.filter((prediction) => {
+    const odds = getWinnerOdds(prediction);
+    return typeof odds === "number" && odds > 1.3;
+  });
+  let filteredWinnerPredictions;
+  if (highConfidenceWinnersOnly && overOddsWinnersOnly) {
+    // Intersection: must be HIGH confidence AND have odds > 1.3
+    filteredWinnerPredictions = highConfidenceWinnerPredictions.filter((p) => {
+      const odds = getWinnerOdds(p);
+      return typeof odds === "number" && odds > 1.3;
+    });
+  } else if (highConfidenceWinnersOnly) {
+    filteredWinnerPredictions = highConfidenceWinnerPredictions;
+  } else if (overOddsWinnersOnly) {
+    filteredWinnerPredictions = overOddsWinnerPredictions;
+  } else {
+    filteredWinnerPredictions = winnerPredictions;
+  }
   const filteredOver15Predictions = topOver15Only
     ? selectTopPercentage(over15Predictions, topOver15Percentage)
     : over15Predictions;
@@ -40,5 +64,6 @@ export function buildTicketPool({
     filteredOver15Predictions,
     filteredOver25Predictions,
     highConfidenceWinnerPredictions,
+    overOddsWinnerPredictions,
   };
 }
