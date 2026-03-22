@@ -20,6 +20,7 @@ export function buildTicketPool({
   playedMatchKeys,
   highConfidenceWinnersOnly,
   overOddsWinnersOnly,
+  minOddsThreshold = 1.3,
   topOver15Only,
   topOver15Percentage,
   topOver25Only,
@@ -45,14 +46,14 @@ export function buildTicketPool({
   );
   const overOddsWinnerPredictions = winnerPredictions.filter((prediction) => {
     const odds = getWinnerOdds(prediction);
-    return typeof odds === "number" && odds > 1.3;
+    return typeof odds === "number" && odds > minOddsThreshold;
   });
   let filteredWinnerPredictions;
   if (highConfidenceWinnersOnly && overOddsWinnersOnly) {
-    // Intersection: must be HIGH confidence AND have odds > 1.3
+    // Intersection: must be HIGH confidence AND have odds > minOddsThreshold
     filteredWinnerPredictions = highConfidenceWinnerPredictions.filter((p) => {
       const odds = getWinnerOdds(p);
-      return typeof odds === "number" && odds > 1.3;
+      return typeof odds === "number" && odds > minOddsThreshold;
     });
   } else if (highConfidenceWinnersOnly) {
     filteredWinnerPredictions = highConfidenceWinnerPredictions;

@@ -34,6 +34,8 @@ function TicketControls({
   overOddsWinnersOnly,
   setOverOddsWinnersOnly,
   overOddsWinnerPredictions,
+  minOddsThreshold,
+  setMinOddsThreshold,
   winnerPredictions,
   // Over 1.5 options
   includeOver15,
@@ -127,7 +129,20 @@ function TicketControls({
                 }
               />
             }
-            label={`Over 1.3 odd winners only (${overOddsWinnerPredictions.length}/${winnerPredictions.length})`}
+            label={`Over ${minOddsThreshold} odd winners only (${overOddsWinnerPredictions.length}/${winnerPredictions.length})`}
+          />
+          <TextField
+            label="Min odds"
+            type="number"
+            size="small"
+            value={minOddsThreshold}
+            onChange={(event) => {
+              const val = parseFloat(event.target.value);
+              if (Number.isFinite(val) && val > 0) setMinOddsThreshold(val);
+            }}
+            inputProps={{ min: 1.01, step: 0.05 }}
+            disabled={!overOddsWinnersOnly}
+            sx={{ width: 110 }}
           />
           <FormControlLabel
             control={

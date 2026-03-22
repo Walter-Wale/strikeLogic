@@ -16,6 +16,7 @@ export function useTickets({
   const [highConfidenceWinnersOnly, setHighConfidenceWinnersOnly] =
     useState(false);
   const [overOddsWinnersOnly, setOverOddsWinnersOnly] = useState(false);
+  const [minOddsThreshold, setMinOddsThreshold] = useState(1.3);
   const [topOver15Only, setTopOver15Only] = useState(false);
   const [topOver15Percentage, setTopOver15Percentage] = useState(30);
   const [topOver25Only, setTopOver25Only] = useState(false);
@@ -48,6 +49,7 @@ export function useTickets({
     playedMatchKeys,
     highConfidenceWinnersOnly,
     overOddsWinnersOnly,
+    minOddsThreshold,
     topOver15Only,
     topOver15Percentage,
     topOver25Only,
@@ -76,6 +78,7 @@ export function useTickets({
       .join("|"),
     highConfidenceWinnersOnly,
     overOddsWinnersOnly,
+    minOddsThreshold,
     topOver15Only,
     topOver15Percentage,
     topOver25Only,
@@ -181,6 +184,8 @@ export function useTickets({
     setHighConfidenceWinnersOnly,
     overOddsWinnersOnly,
     setOverOddsWinnersOnly,
+    minOddsThreshold,
+    setMinOddsThreshold,
     overOddsWinnerPredictions,
     topOver15Only,
     setTopOver15Only,
