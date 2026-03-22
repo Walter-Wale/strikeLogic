@@ -405,11 +405,21 @@ export default function PredictionTable({
               ? "Score Mode"
               : mode === "form"
                 ? "Form Mode"
-                : "Gate Mode"
+                : mode === "ultra"
+                  ? "Ultra Mode"
+                  : "Gate Mode"
           }
           size="small"
-          color={mode === "score" || mode === "form" ? "primary" : "default"}
-          variant={mode === "score" || mode === "form" ? "filled" : "outlined"}
+          color={
+            mode === "score" || mode === "form" || mode === "ultra"
+              ? "primary"
+              : "default"
+          }
+          variant={
+            mode === "score" || mode === "form" || mode === "ultra"
+              ? "filled"
+              : "outlined"
+          }
         />
         <Chip
           label={`Goal ${isStrictGoalMode ? "Strict" : "Light"}`}

@@ -372,7 +372,9 @@ async function getPredictions(req, res) {
         ? "score"
         : req.query.mode === "form"
           ? "form"
-          : "gate";
+          : req.query.mode === "ultra"
+            ? "ultra"
+            : "gate";
     const goalMode = req.query.goalMode === "strict" ? "strict" : "light";
     const parsedThreshold = Number(req.query.threshold);
     const threshold = Number.isFinite(parsedThreshold) ? parsedThreshold : 10;
@@ -494,6 +496,33 @@ async function getPredictions(req, res) {
           formDelta = Number(formResult.formDelta.toFixed(2));
         }
         // Always fall through to predictions.push so goal market data is preserved
+      } else if (mode === "ultra") {
+        // AND-intersection of gate, score, and form modes
+        const gateQualified = passesGateSystem({
+          formWins,
+          formLosses,
+          h2hHomeWins,
+          h2hTotalLosses,
+        });
+
+        const ultraScore = calculateScore({
+          formWins,
+          formLosses,
+          h2hHomeWins,
+          h2hTotalLosses,
+        });
+        const scoreQualified = ultraScore >= threshold;
+
+        const formResult = calculateFormBasedScore({
+          HOME_FORM,
+          AWAY_FORM,
+          DIRECT_H2H,
+          homeTeam,
+          awayTeam,
+        });
+        const formQualified = !formResult.rejected && formResult.score >= 8;
+
+        winnerQualified = gateQualified && scoreQualified && formQualified;
       }
 
       predictions.push({

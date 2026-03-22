@@ -109,6 +109,7 @@ function PredictionSection({
               <ToggleButton value="gate">Gate</ToggleButton>
               <ToggleButton value="score">Score</ToggleButton>
               <ToggleButton value="form">Form</ToggleButton>
+              <ToggleButton value="ultra">Ultra</ToggleButton>
             </ToggleButtonGroup>
           </Box>
 
