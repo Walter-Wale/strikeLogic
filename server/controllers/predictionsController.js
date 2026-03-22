@@ -485,13 +485,15 @@ async function getPredictions(req, res) {
           homeTeam,
           awayTeam,
         });
-        if (formResult.rejected || formResult.score < 8) continue;
-        score = formResult.score;
-        confidence = getFormConfidence(formResult.score);
-        winnerQualified = true;
-        homeFormScore = Number(formResult.homeFormScore.toFixed(2));
-        awayFormScore = Number(formResult.awayFormScore.toFixed(2));
-        formDelta = Number(formResult.formDelta.toFixed(2));
+        if (!formResult.rejected && formResult.score >= 8) {
+          score = formResult.score;
+          confidence = getFormConfidence(formResult.score);
+          winnerQualified = true;
+          homeFormScore = Number(formResult.homeFormScore.toFixed(2));
+          awayFormScore = Number(formResult.awayFormScore.toFixed(2));
+          formDelta = Number(formResult.formDelta.toFixed(2));
+        }
+        // Always fall through to predictions.push so goal market data is preserved
       }
 
       predictions.push({
