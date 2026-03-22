@@ -17,6 +17,7 @@ const DEFAULT_GOAL_MODE = "strict";
 const DEFAULT_SCORE_THRESHOLD = "10";
 const DEFAULT_OVER15_THRESHOLD = "7";
 const DEFAULT_OVER25_THRESHOLD = "11";
+const DEFAULT_BTTS_THRESHOLD = "7";
 const DEFAULT_PREDICTION_SCOPE = PREDICTION_SCOPE_OPTIONS.ALL_SYNCED;
 
 function normalizeThreshold(value, fallback = 10) {
@@ -71,6 +72,7 @@ function usePredictions(selectedDate, allMatches) {
   const [over25Threshold, setOver25Threshold] = useState(
     DEFAULT_OVER25_THRESHOLD,
   );
+  const [bttsThreshold, setBttsThreshold] = useState(DEFAULT_BTTS_THRESHOLD);
 
   const syncedMatches = useMemo(
     () => allMatches.filter(isSyncedMatch),
@@ -165,6 +167,7 @@ function usePredictions(selectedDate, allMatches) {
     scoreThreshold,
     over15Threshold,
     over25Threshold,
+    bttsThreshold,
   ]);
 
   // Handler: Run predictions
@@ -183,6 +186,7 @@ function usePredictions(selectedDate, allMatches) {
           threshold: normalizeThreshold(scoreThreshold, 10),
           over15Threshold: normalizeThreshold(over15Threshold, 7),
           over25Threshold: normalizeThreshold(over25Threshold, 11),
+          bttsThreshold: normalizeThreshold(bttsThreshold, 7),
         },
       );
       if (response.success) {
@@ -221,6 +225,8 @@ function usePredictions(selectedDate, allMatches) {
     setOver15Threshold,
     over25Threshold,
     setOver25Threshold,
+    bttsThreshold,
+    setBttsThreshold,
     chainCompleteDetected,
     setChainCompleteDetected,
     h2hChainComplete,

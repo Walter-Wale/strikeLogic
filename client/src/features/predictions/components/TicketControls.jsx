@@ -55,6 +55,15 @@ function TicketControls({
   setTopOver25Percentage,
   filteredOver25Predictions,
   over25Predictions,
+  // BTTS options
+  includeBTTS,
+  setIncludeBTTS,
+  topBTTSOnly,
+  setTopBTTSOnly,
+  topBTTSPercentage,
+  setTopBTTSPercentage,
+  filteredBTTSPredictions,
+  bttsPredictions,
   // Actions
   noData,
   handleRandomize,
@@ -213,6 +222,39 @@ function TicketControls({
               />
             }
             label="Top % only O2.5"
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={includeBTTS}
+                onChange={(event) => setIncludeBTTS(event.target.checked)}
+              />
+            }
+            label={`Include BTTS (${filteredBTTSPredictions.length}/${bttsPredictions.length})`}
+          />
+          <TextField
+            label="Top % BTTS"
+            type="number"
+            size="small"
+            value={topBTTSPercentage}
+            onChange={(event) =>
+              setTopBTTSPercentage(normalizePercentage(event.target.value, 20))
+            }
+            inputProps={{ min: 1, max: 100 }}
+            disabled={
+              !includeBTTS || !topBTTSOnly || bttsPredictions.length === 0
+            }
+            sx={{ width: 110 }}
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={topBTTSOnly}
+                disabled={!includeBTTS || bttsPredictions.length === 0}
+                onChange={(event) => setTopBTTSOnly(event.target.checked)}
+              />
+            }
+            label="Top % only BTTS"
           />
         </FormGroup>
 

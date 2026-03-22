@@ -141,7 +141,8 @@ export async function scrapeH2HByLeagues(date, leagues, mode = "auto") {
  *   goalMode?: "light" | "strict",
  *   threshold?: number,
  *   over15Threshold?: number,
- *   over25Threshold?: number
+ *   over25Threshold?: number,
+ *   bttsThreshold?: number
  * }} options
  * @returns {Promise<Object>} Response with predictions array
  */
@@ -173,6 +174,11 @@ export async function fetchPredictions(date, leagues = [], options = {}) {
     params.over25Threshold = Number.isFinite(parsedOver25Threshold)
       ? parsedOver25Threshold
       : 11;
+
+    const parsedBttsThreshold = Number(options.bttsThreshold);
+    params.bttsThreshold = Number.isFinite(parsedBttsThreshold)
+      ? parsedBttsThreshold
+      : 7;
 
     const response = await apiClient.get("/predictions", { params });
     return response.data;

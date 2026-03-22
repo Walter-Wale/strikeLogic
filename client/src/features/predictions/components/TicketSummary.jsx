@@ -22,6 +22,7 @@ function TicketSummary({ tickets }) {
   const winnerDistribution = getMarketDistributionSummary(tickets, "winner");
   const over15Distribution = getMarketDistributionSummary(tickets, "over15");
   const over25Distribution = getMarketDistributionSummary(tickets, "over25");
+  const bttsDistribution = getMarketDistributionSummary(tickets, "btts");
 
   return (
     <>
@@ -50,6 +51,15 @@ function TicketSummary({ tickets }) {
           {over25Distribution.ticketCount !== 1 ? "s" : ""}: min{" "}
           {over25Distribution.minimum}, max {over25Distribution.maximum},
           average {over25Distribution.average.toFixed(1)} per ticket.
+        </Alert>
+      )}
+      {bttsDistribution && bttsDistribution.totalPicks > 0 && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          BTTS picks are distributed across {bttsDistribution.ticketCount}{" "}
+          ticket
+          {bttsDistribution.ticketCount !== 1 ? "s" : ""}: min{" "}
+          {bttsDistribution.minimum}, max {bttsDistribution.maximum}, average{" "}
+          {bttsDistribution.average.toFixed(1)} per ticket.
         </Alert>
       )}
     </>

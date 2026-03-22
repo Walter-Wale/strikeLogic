@@ -139,6 +139,54 @@ function calculateGoalScore({ HOME_FORM, AWAY_FORM, DIRECT_H2H }) {
   return score;
 }
 
+function calculateBTTSScore({ HOME_FORM, AWAY_FORM, DIRECT_H2H }) {
+  const allMatches = [...HOME_FORM, ...AWAY_FORM, ...DIRECT_H2H].filter(
+    (m) => m.homeScore !== null && m.awayScore !== null,
+  );
+
+  if (allMatches.length < 6) return -5;
+
+  let score = 0;
+
+  // SCORING FREQUENCY
+  const homeScores =
+    HOME_FORM.filter((m) => m.homeScore >= 1).length / (HOME_FORM.length || 1);
+  const awayScores =
+    AWAY_FORM.filter((m) => m.awayScore >= 1).length / (AWAY_FORM.length || 1);
+
+  if (homeScores >= 0.7) score += 3;
+  if (awayScores >= 0.7) score += 3;
+
+  // CONCEDING
+  const homeConcedes =
+    HOME_FORM.filter((m) => m.awayScore >= 1).length / (HOME_FORM.length || 1);
+  const awayConcedes =
+    AWAY_FORM.filter((m) => m.homeScore >= 1).length / (AWAY_FORM.length || 1);
+
+  if (homeConcedes >= 0.6) score += 2;
+  if (awayConcedes >= 0.6) score += 2;
+
+  // H2H BTTS RATE
+  const h2hValid = DIRECT_H2H.filter(
+    (m) => m.homeScore !== null && m.awayScore !== null,
+  );
+  const h2hBTTS =
+    h2hValid.filter((m) => m.homeScore >= 1 && m.awayScore >= 1).length /
+    (h2hValid.length || 1);
+
+  if (h2hBTTS >= 0.6) score += 4;
+  else if (h2hBTTS < 0.3) score -= 4;
+
+  // LOW SCORE PENALTY
+  const lowScoreRate =
+    allMatches.filter((m) => m.homeScore + m.awayScore <= 1).length /
+    allMatches.length;
+
+  if (lowScoreRate > 0.3) score -= 5;
+
+  return score;
+}
+
 function calculateGoalScoreStrict({ HOME_FORM, AWAY_FORM, DIRECT_H2H }) {
   const allMatches = [...HOME_FORM, ...AWAY_FORM, ...DIRECT_H2H].filter(
     (r) => r.homeScore !== null && r.awayScore !== null,
@@ -361,6 +409,7 @@ function getFormConfidence(score) {
  *   - goalMode (optional) - "light" or "strict"
  *   - over15Threshold (optional) - goal score threshold for Over 1.5
  *   - over25Threshold (optional) - goal score threshold for Over 2.5
+ *   - bttsThreshold (optional) - btts score threshold for BTTS
  *
  * Returns { success: true, data: [ predictionObject, ... ] }
  */
@@ -386,6 +435,10 @@ async function getPredictions(req, res) {
     const over25Threshold = Number.isFinite(parsedOver25Threshold)
       ? parsedOver25Threshold
       : 11;
+    const parsedBttsThreshold = Number(req.query.bttsThreshold);
+    const bttsThreshold = Number.isFinite(parsedBttsThreshold)
+      ? parsedBttsThreshold
+      : 7;
 
     if (!date) {
       return res
@@ -437,6 +490,11 @@ async function getPredictions(req, res) {
             });
       const over15 = goalScore >= over15Threshold;
       const over25 = goalScore >= over25Threshold;
+      const bttsScore = calculateBTTSScore({
+        HOME_FORM,
+        AWAY_FORM,
+        DIRECT_H2H,
+      });
 
       const formRecords = HOME_FORM.filter(
         (r) => r.homeScore !== null && r.awayScore !== null,
@@ -546,6 +604,9 @@ async function getPredictions(req, res) {
         over15Threshold,
         over25Threshold,
         goalScore: Number(goalScore.toFixed(2)),
+        bttsScore: Number(bttsScore.toFixed(2)),
+        btts: false,
+        bttsThreshold,
         homeFormScore,
         awayFormScore,
         formDelta,
@@ -578,6 +639,10 @@ async function getPredictions(req, res) {
         prediction.over25 = prediction.goalScore > over25Threshold;
       });
     }
+
+    predictions.forEach((prediction) => {
+      prediction.btts = prediction.bttsScore > bttsThreshold;
+    });
 
     return res.json({ success: true, data: predictions });
   } catch (error) {

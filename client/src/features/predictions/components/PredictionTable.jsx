@@ -236,6 +236,31 @@ function buildColumns(
     ];
   }
 
+  if (activeSubTab === "btts") {
+    return [
+      ...commonColumns,
+      {
+        field: "bttsScore",
+        headerName: "BTTS Score",
+        width: 120,
+        align: "center",
+        headerAlign: "center",
+        valueFormatter: (params) =>
+          params.value != null ? Number(params.value).toFixed(2) : "-",
+      },
+      {
+        field: "bttsBand",
+        headerName: "BTTS",
+        width: 120,
+        align: "center",
+        headerAlign: "center",
+        renderCell: (params) =>
+          renderGoalMarketChip(Boolean(params.row.btts), "BTTS"),
+        sortable: false,
+      },
+    ];
+  }
+
   if (mode !== "score" && mode !== "form") {
     return winnerColumns;
   }
@@ -278,6 +303,7 @@ export default function PredictionTable({
   threshold = "10",
   over15Threshold = "7",
   over25Threshold = "11",
+  bttsThreshold = "7",
   onAnalyzeClick,
   matchDate,
 }) {
@@ -291,8 +317,10 @@ export default function PredictionTable({
     threshold === "" || threshold == null ? "10" : threshold;
   const over15ThresholdValue = normalizeNumericThreshold(over15Threshold, 7);
   const over25ThresholdValue = normalizeNumericThreshold(over25Threshold, 11);
+  const bttsThresholdValue = normalizeNumericThreshold(bttsThreshold, 7);
   const over15ThresholdLabel = String(over15ThresholdValue);
   const over25ThresholdLabel = String(over25ThresholdValue);
+  const bttsThresholdLabel = String(bttsThresholdValue);
   const winnerPredictions = predictions.filter((prediction) =>
     Boolean(prediction.predictedWinner),
   );
@@ -310,12 +338,16 @@ export default function PredictionTable({
       ? prediction.over25 === true
       : isLightModeOver25Match(prediction.goalScore, over25ThresholdValue),
   );
+  const bttsPredictions = predictions.filter(
+    (prediction) => prediction.btts === true,
+  );
 
   useEffect(() => {
     const counts = {
       winners: winnerPredictions.length,
       over15: over15Predictions.length,
       over25: over25Predictions.length,
+      btts: bttsPredictions.length,
     };
 
     if (counts[activeSubTab] > 0) {
@@ -334,12 +366,18 @@ export default function PredictionTable({
 
     if (counts.over25 > 0) {
       setActiveSubTab("over25");
+      return;
+    }
+
+    if (counts.btts > 0) {
+      setActiveSubTab("btts");
     }
   }, [
     activeSubTab,
     winnerPredictions.length,
     over15Predictions.length,
     over25Predictions.length,
+    bttsPredictions.length,
   ]);
 
   let filteredPredictions = winnerPredictions;
@@ -350,6 +388,10 @@ export default function PredictionTable({
 
   if (activeSubTab === "over25") {
     filteredPredictions = over25Predictions;
+  }
+
+  if (activeSubTab === "btts") {
+    filteredPredictions = bttsPredictions;
   }
 
   const columns = buildColumns(
@@ -366,7 +408,9 @@ export default function PredictionTable({
       ? "predicted win"
       : activeSubTab === "over15"
         ? "over 1.5 pick"
-        : "over 2.5 pick";
+        : activeSubTab === "over25"
+          ? "over 2.5 pick"
+          : "BTTS pick";
 
   // Assign stable row IDs from matchId
   const rows = filteredPredictions.map((prediction) => ({
@@ -455,6 +499,12 @@ export default function PredictionTable({
           color={activeSubTab === "over25" ? "success" : "default"}
           variant={activeSubTab === "over25" ? "filled" : "outlined"}
         />
+        <Chip
+          label={`BTTS > ${bttsThresholdLabel}`}
+          size="small"
+          color={activeSubTab === "btts" ? "success" : "default"}
+          variant={activeSubTab === "btts" ? "filled" : "outlined"}
+        />
         {loading && <CircularProgress size={20} sx={{ ml: 1 }} />}
       </Box>
 
@@ -502,6 +552,12 @@ export default function PredictionTable({
           >
             Over 2.5 ({over25Predictions.length})
           </Button>
+          <Button
+            variant={activeSubTab === "btts" ? "contained" : "outlined"}
+            onClick={() => setActiveSubTab("btts")}
+          >
+            BTTS ({bttsPredictions.length})
+          </Button>
         </Box>
 
         {!loading && filteredPredictions.length === 0 ? (
@@ -520,6 +576,8 @@ export default function PredictionTable({
               (goalMode === "strict"
                 ? "No matches made the top-30% cut for Over 2.5."
                 : "No matches exceeded the Over 2.5 threshold.")}
+            {activeSubTab === "btts" &&
+              "No matches cleared the BTTS score threshold."}
           </Typography>
         ) : (
           <DataGrid
@@ -555,6 +613,7 @@ export default function PredictionTable({
           winnerPredictions={winnerPredictions}
           over15Predictions={over15Predictions}
           over25Predictions={over25Predictions}
+          bttsPredictions={bttsPredictions}
           matchDate={matchDate}
           onSaved={() => setLastSavedAt(Date.now())}
         />

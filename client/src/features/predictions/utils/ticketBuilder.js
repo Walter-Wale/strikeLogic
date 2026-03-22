@@ -26,8 +26,10 @@ export function buildTicketPredictions({
   winnerPredictions,
   over15Predictions,
   over25Predictions,
+  bttsPredictions,
   includeOver15,
   includeOver25,
+  includeBTTS,
 }) {
   const pool = winnerPredictions.map((prediction) => ({
     ...prediction,
@@ -50,6 +52,16 @@ export function buildTicketPredictions({
         ...prediction,
         predictedWinner: "Over 2.5",
         ticketMarket: "over25",
+      })),
+    );
+  }
+
+  if (includeBTTS) {
+    pool.push(
+      ...bttsPredictions.map((prediction) => ({
+        ...prediction,
+        predictedWinner: "BTTS",
+        ticketMarket: "btts",
       })),
     );
   }
@@ -91,7 +103,7 @@ export function buildTickets(pool, size) {
   const tickets = Array.from({ length: initialTicketCount }, () =>
     createTicketBucket(),
   );
-  const marketPlacementOrder = ["winner", "over15", "over25"];
+  const marketPlacementOrder = ["winner", "over15", "over25", "btts"];
 
   marketPlacementOrder.forEach((market) => {
     const marketPredictions = pool.filter(

@@ -7,6 +7,7 @@ export function useTickets({
   winnerPredictions,
   over15Predictions,
   over25Predictions,
+  bttsPredictions,
   matchDate,
   onSaved,
 }) {
@@ -21,8 +22,11 @@ export function useTickets({
   const [topOver15Percentage, setTopOver15Percentage] = useState(30);
   const [topOver25Only, setTopOver25Only] = useState(false);
   const [topOver25Percentage, setTopOver25Percentage] = useState(30);
+  const [topBTTSOnly, setTopBTTSOnly] = useState(false);
+  const [topBTTSPercentage, setTopBTTSPercentage] = useState(30);
   const [includeOver15, setIncludeOver15] = useState(false);
   const [includeOver25, setIncludeOver25] = useState(false);
+  const [includeBTTS, setIncludeBTTS] = useState(false);
   const [tickets, setTickets] = useState([]);
   const [saving, setSaving] = useState(false);
   const [playedTicketIndices, setPlayedTicketIndices] = useState(
@@ -40,12 +44,14 @@ export function useTickets({
     filteredWinnerPredictions,
     filteredOver15Predictions,
     filteredOver25Predictions,
+    filteredBTTSPredictions,
     highConfidenceWinnerPredictions,
     overOddsWinnerPredictions,
   } = buildTicketPool({
     winnerPredictions,
     over15Predictions,
     over25Predictions,
+    bttsPredictions,
     playedMatchKeys,
     highConfidenceWinnersOnly,
     overOddsWinnersOnly,
@@ -54,8 +60,11 @@ export function useTickets({
     topOver15Percentage,
     topOver25Only,
     topOver25Percentage,
+    topBTTSOnly,
+    topBTTSPercentage,
     includeOver15,
     includeOver25,
+    includeBTTS,
   });
 
   const hasHighConfidenceWinners = highConfidenceWinnerPredictions.length > 0;
@@ -76,6 +85,9 @@ export function useTickets({
     filteredOver25Predictions
       .map((prediction) => `${prediction.matchId}:${prediction.goalScore}`)
       .join("|"),
+    filteredBTTSPredictions
+      .map((prediction) => `${prediction.matchId}:${prediction.bttsScore}`)
+      .join("|"),
     highConfidenceWinnersOnly,
     overOddsWinnersOnly,
     minOddsThreshold,
@@ -83,8 +95,11 @@ export function useTickets({
     topOver15Percentage,
     topOver25Only,
     topOver25Percentage,
+    topBTTSOnly,
+    topBTTSPercentage,
     includeOver15,
     includeOver25,
+    includeBTTS,
     teamsPerTicket,
     maxAppearances,
   ].join("::");
@@ -195,10 +210,16 @@ export function useTickets({
     setTopOver25Only,
     topOver25Percentage,
     setTopOver25Percentage,
+    topBTTSOnly,
+    setTopBTTSOnly,
+    topBTTSPercentage,
+    setTopBTTSPercentage,
     includeOver15,
     setIncludeOver15,
     includeOver25,
     setIncludeOver25,
+    includeBTTS,
+    setIncludeBTTS,
     tickets,
     saving,
     snackbar,
@@ -208,6 +229,7 @@ export function useTickets({
     filteredWinnerPredictions,
     filteredOver15Predictions,
     filteredOver25Predictions,
+    filteredBTTSPredictions,
     highConfidenceWinnerPredictions,
     hasHighConfidenceWinners,
     ticketPredictions,

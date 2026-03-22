@@ -17,6 +17,7 @@ export function buildTicketPool({
   winnerPredictions,
   over15Predictions,
   over25Predictions,
+  bttsPredictions,
   playedMatchKeys,
   highConfidenceWinnersOnly,
   overOddsWinnersOnly,
@@ -25,8 +26,11 @@ export function buildTicketPool({
   topOver15Percentage,
   topOver25Only,
   topOver25Percentage,
+  topBTTSOnly,
+  topBTTSPercentage,
   includeOver15,
   includeOver25,
+  includeBTTS,
 }) {
   // Exclude matches that have already been saved as played
   if (playedMatchKeys && playedMatchKeys.size > 0) {
@@ -37,6 +41,9 @@ export function buildTicketPool({
       (p) => !playedMatchKeys.has(makeMatchKey(p)),
     );
     over25Predictions = over25Predictions.filter(
+      (p) => !playedMatchKeys.has(makeMatchKey(p)),
+    );
+    bttsPredictions = bttsPredictions.filter(
       (p) => !playedMatchKeys.has(makeMatchKey(p)),
     );
   }
@@ -68,13 +75,18 @@ export function buildTicketPool({
   const filteredOver25Predictions = topOver25Only
     ? selectTopPercentage(over25Predictions, topOver25Percentage)
     : over25Predictions;
+  const filteredBTTSPredictions = topBTTSOnly
+    ? selectTopPercentage(bttsPredictions, topBTTSPercentage)
+    : bttsPredictions;
 
   const ticketPredictions = buildTicketPredictions({
     winnerPredictions: filteredWinnerPredictions,
     over15Predictions: filteredOver15Predictions,
     over25Predictions: filteredOver25Predictions,
+    bttsPredictions: filteredBTTSPredictions,
     includeOver15,
     includeOver25,
+    includeBTTS,
   });
 
   return {
@@ -82,6 +94,7 @@ export function buildTicketPool({
     filteredWinnerPredictions,
     filteredOver15Predictions,
     filteredOver25Predictions,
+    filteredBTTSPredictions,
     highConfidenceWinnerPredictions,
     overOddsWinnerPredictions,
   };

@@ -49,6 +49,8 @@ function PredictionSection({
   onOver15ThresholdChange,
   over25Threshold,
   onOver25ThresholdChange,
+  bttsThreshold,
+  onBttsThresholdChange,
   selectedDate,
 }) {
   const isScoreMode = predictionMode === "score";
@@ -238,6 +240,16 @@ function PredictionSection({
             inputProps={{ min: 0, step: 0.5 }}
             sx={{ width: 165, mt: { xs: 0, sm: 3 } }}
           />
+
+          <TextField
+            label="BTTS Threshold"
+            type="number"
+            size="small"
+            value={bttsThreshold}
+            onChange={(event) => onBttsThresholdChange(event.target.value)}
+            inputProps={{ min: 0, step: 0.5 }}
+            sx={{ width: 155, mt: { xs: 0, sm: 3 } }}
+          />
         </Box>
 
         <Box sx={{ width: "100%" }}>
@@ -328,6 +340,7 @@ function PredictionSection({
         threshold={scoreThreshold}
         over15Threshold={over15Threshold}
         over25Threshold={over25Threshold}
+        bttsThreshold={bttsThreshold}
         onAnalyzeClick={onAnalyzeClick}
         matchDate={selectedDate ? selectedDate.format("YYYY-MM-DD") : null}
       />

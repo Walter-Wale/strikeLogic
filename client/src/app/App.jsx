@@ -36,13 +36,8 @@ function App() {
   const [matchView, setMatchView] = useState("all");
 
   // Matches
-  const {
-    allMatches,
-    setAllMatches,
-    loading,
-    error,
-    setError,
-  } = useMatches(selectedDate);
+  const { allMatches, setAllMatches, loading, error, setError } =
+    useMatches(selectedDate);
 
   // Predictions (needs matches for allMatchesSynced check)
   const {
@@ -71,6 +66,8 @@ function App() {
     setOver15Threshold,
     over25Threshold,
     setOver25Threshold,
+    bttsThreshold,
+    setBttsThreshold,
     setChainCompleteDetected,
     handleRunPredictions,
   } = usePredictions(selectedDate, allMatches);
@@ -159,6 +156,8 @@ function App() {
         onOver15ThresholdChange={setOver15Threshold}
         over25Threshold={over25Threshold}
         onOver25ThresholdChange={setOver25Threshold}
+        bttsThreshold={bttsThreshold}
+        onBttsThresholdChange={setBttsThreshold}
         selectedDate={selectedDate}
       />
 

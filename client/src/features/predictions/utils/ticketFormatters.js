@@ -19,6 +19,10 @@ export function getTicketPickMeta(prediction) {
     return { label: "Over 2.5", color: "warning", variant: "outlined" };
   }
 
+  if (prediction.predictedWinner === "BTTS") {
+    return { label: "BTTS", color: "secondary", variant: "outlined" };
+  }
+
   return {
     label: prediction.predictedWinner || "Pick",
     color: "default",

@@ -9,6 +9,7 @@ export default function TicketsTab({
   winnerPredictions = [],
   over15Predictions = [],
   over25Predictions = [],
+  bttsPredictions = [],
   matchDate,
   onSaved,
 }) {
@@ -16,6 +17,7 @@ export default function TicketsTab({
     winnerPredictions,
     over15Predictions,
     over25Predictions,
+    bttsPredictions,
     matchDate,
     onSaved,
   });
@@ -30,6 +32,7 @@ export default function TicketsTab({
         winnerPredictions={winnerPredictions}
         over15Predictions={over15Predictions}
         over25Predictions={over25Predictions}
+        bttsPredictions={bttsPredictions}
       />
 
       {noData && (
