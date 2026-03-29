@@ -69,6 +69,10 @@ function isLightModeOver25Match(goalScore, over25Threshold) {
   return goalScore > over25Threshold;
 }
 
+function usesGoalFlags(goalMode) {
+  return goalMode === "strict" || goalMode === "super";
+}
+
 function buildColumns(
   mode,
   onAnalyzeClick,
@@ -201,7 +205,7 @@ function buildColumns(
         headerAlign: "center",
         renderCell: (params) =>
           renderGoalMarketChip(
-            goalMode === "strict"
+            usesGoalFlags(goalMode)
               ? Boolean(params.row.over15)
               : isLightModeOver15Match(
                   params.row.goalScore,
@@ -226,7 +230,7 @@ function buildColumns(
         headerAlign: "center",
         renderCell: (params) =>
           renderGoalMarketChip(
-            goalMode === "strict"
+            usesGoalFlags(goalMode)
               ? Boolean(params.row.over25)
               : isLightModeOver25Match(params.row.goalScore, over25Threshold),
             "O2.5",
@@ -313,6 +317,8 @@ export default function PredictionTable({
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const isScoreMode = mode === "score";
   const isStrictGoalMode = goalMode === "strict";
+  const isSuperGoalMode = goalMode === "super";
+  const goalModeUsesFlags = usesGoalFlags(goalMode);
   const thresholdLabel =
     threshold === "" || threshold == null ? "10" : threshold;
   const over15ThresholdValue = normalizeNumericThreshold(over15Threshold, 7);
@@ -325,7 +331,7 @@ export default function PredictionTable({
     Boolean(prediction.predictedWinner),
   );
   const over15Predictions = predictions.filter((prediction) =>
-    goalMode === "strict"
+    goalModeUsesFlags
       ? prediction.over15 === true
       : isLightModeOver15Match(
           prediction.goalScore,
@@ -334,13 +340,35 @@ export default function PredictionTable({
         ),
   );
   const over25Predictions = predictions.filter((prediction) =>
-    goalMode === "strict"
+    goalModeUsesFlags
       ? prediction.over25 === true
       : isLightModeOver25Match(prediction.goalScore, over25ThresholdValue),
   );
   const bttsPredictions = predictions.filter(
     (prediction) => prediction.btts === true,
   );
+
+  useEffect(() => {
+    console.log(
+      "Over 1.5 teams",
+      over15Predictions.map((prediction) => ({
+        matchId: prediction.matchId,
+        homeTeam: prediction.homeTeam,
+        awayTeam: prediction.awayTeam,
+        goalScore: prediction.goalScore,
+      })),
+    );
+
+    console.log(
+      "Over 2.5 teams",
+      over25Predictions.map((prediction) => ({
+        matchId: prediction.matchId,
+        homeTeam: prediction.homeTeam,
+        awayTeam: prediction.awayTeam,
+        goalScore: prediction.goalScore,
+      })),
+    );
+  }, [over15Predictions, over25Predictions]);
 
   useEffect(() => {
     const counts = {
@@ -466,10 +494,16 @@ export default function PredictionTable({
           }
         />
         <Chip
-          label={`Goal ${isStrictGoalMode ? "Strict" : "Light"}`}
+          label={`Goal ${isStrictGoalMode ? "Strict" : isSuperGoalMode ? "Super" : "Light"}`}
           size="small"
-          color={isStrictGoalMode ? "warning" : "default"}
-          variant={isStrictGoalMode ? "filled" : "outlined"}
+          color={
+            isStrictGoalMode
+              ? "warning"
+              : isSuperGoalMode
+                ? "success"
+                : "default"
+          }
+          variant={goalModeUsesFlags ? "filled" : "outlined"}
         />
         {isScoreMode && (
           <Chip
@@ -483,6 +517,8 @@ export default function PredictionTable({
           label={
             goalMode === "strict"
               ? `O1.5 > ${over15ThresholdLabel}`
+              : goalMode === "super"
+                ? "O1.5 disabled in Super"
               : `O1.5 > ${over15ThresholdLabel} < ${over25ThresholdLabel}`
           }
           size="small"
@@ -493,6 +529,8 @@ export default function PredictionTable({
           label={
             goalMode === "strict"
               ? "O2.5 Top 30% of O1.5 pool"
+              : goalMode === "super"
+                ? `O2.5 Super > ${over25ThresholdLabel}`
               : `O2.5 > ${over25ThresholdLabel}`
           }
           size="small"
@@ -571,10 +609,14 @@ export default function PredictionTable({
                 ? "No predictions met the selected scoring threshold."
                 : "No strong home-team predictions found for the selected matches.")}
             {activeSubTab === "over15" &&
-              "No matches cleared the Over 1.5 entry threshold."}
+              (goalMode === "super"
+                ? "Super mode does not produce Over 1.5 picks."
+                : "No matches cleared the Over 1.5 entry threshold.")}
             {activeSubTab === "over25" &&
               (goalMode === "strict"
                 ? "No matches made the top-30% cut for Over 2.5."
+                : goalMode === "super"
+                  ? "No matches cleared the Super Over 2.5 filters."
                 : "No matches exceeded the Over 2.5 threshold.")}
             {activeSubTab === "btts" &&
               "No matches cleared the BTTS score threshold."}

@@ -132,6 +132,7 @@ function PredictionSection({
             >
               <ToggleButton value="light">Light</ToggleButton>
               <ToggleButton value="strict">Strict</ToggleButton>
+              <ToggleButton value="super">Super</ToggleButton>
             </ToggleButtonGroup>
           </Box>
 

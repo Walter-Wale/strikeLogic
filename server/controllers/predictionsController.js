@@ -14,7 +14,7 @@ const predictionService = new PredictionService();
  *   - leagues[] (optional) - array of league name strings
  *   - mode (optional) - "gate" | "score" | "form" | "ultra"
  *   - threshold (optional) - minimum score to include a prediction
- *   - goalMode (optional) - "light" | "strict"
+ *   - goalMode (optional) - "light" | "strict" | "super"
  *   - over15Threshold (optional) - goal score threshold for Over 1.5
  *   - over25Threshold (optional) - goal score threshold for Over 2.5
  *   - bttsThreshold (optional) - btts score threshold for BTTS
@@ -32,7 +32,12 @@ async function getPredictions(req, res) {
           : req.query.mode === "ultra"
             ? "ultra"
             : "gate";
-    const goalMode = req.query.goalMode === "strict" ? "strict" : "light";
+    const goalMode =
+      req.query.goalMode === "strict"
+        ? "strict"
+        : req.query.goalMode === "super"
+          ? "super"
+          : "light";
     const parsedThreshold = Number(req.query.threshold);
     const threshold = Number.isFinite(parsedThreshold) ? parsedThreshold : 10;
     const parsedOver15Threshold = Number(req.query.over15Threshold);

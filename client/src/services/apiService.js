@@ -138,7 +138,7 @@ export async function scrapeH2HByLeagues(date, leagues, mode = "auto") {
  * @param {Array<string>} leagues - Array of league names to filter by
  * @param {{
  *   mode?: "gate" | "score",
- *   goalMode?: "light" | "strict",
+ *   goalMode?: "light" | "strict" | "super",
  *   threshold?: number,
  *   over15Threshold?: number,
  *   over25Threshold?: number,
@@ -151,7 +151,12 @@ export async function fetchPredictions(date, leagues = [], options = {}) {
     const params = {
       date,
       mode: options.mode || "gate",
-      goalMode: options.goalMode === "strict" ? "strict" : "light",
+      goalMode:
+        options.goalMode === "strict"
+          ? "strict"
+          : options.goalMode === "super"
+            ? "super"
+            : "light",
     };
 
     if (leagues && leagues.length > 0) {

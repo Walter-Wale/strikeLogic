@@ -6,6 +6,7 @@ const FormSystem = require("./systems/winner/FormSystem");
 const UltraSystem = require("./systems/winner/UltraSystem");
 
 const Over15System = require("./systems/goals/Over15System");
+const SuperOver25System = require("./systems/goals/SuperOver25System");
 const BTTSSystem = require("./systems/btts/BTTSSystem");
 
 const { applyStrictGoalSelector } = require("./selectors/strictGoalSelector");
@@ -81,7 +82,19 @@ class PredictionService {
       }
 
       // ── Goal & BTTS predictions ────────────────────────────────────────────
-      const { goalScore } = Over15System.run(match, normalizedH2HData, config);
+      let goalScore = null;
+      let over15 = false;
+      let over25 = false;
+
+      if (goalMode === "super") {
+        const result = SuperOver25System.run(match, normalizedH2HData, config);
+        goalScore = result.goalScore;
+        over25 = result.over25;
+      } else {
+        const result = Over15System.run(match, normalizedH2HData, config);
+        goalScore = result.goalScore;
+      }
+
       const { bttsScore } = BTTSSystem.run(match, normalizedH2HData, config);
 
       const homeTeam = match.homeTeam;
@@ -102,8 +115,8 @@ class PredictionService {
         goalMode,
         score: score !== null ? Number(score.toFixed(2)) : null,
         confidence,
-        over15: false,
-        over25: false,
+        over15,
+        over25,
         over15Threshold,
         over25Threshold,
         goalScore: Number(goalScore.toFixed(2)),
@@ -117,7 +130,11 @@ class PredictionService {
     }
 
     // ── Apply goal market flags ────────────────────────────────────────────
-    if (goalMode === "strict") {
+    if (goalMode === "super") {
+      predictions.forEach((prediction) => {
+        prediction.over15 = false;
+      });
+    } else if (goalMode === "strict") {
       applyStrictGoalSelector(predictions, { over15Threshold });
     } else {
       predictions.forEach((prediction) => {
