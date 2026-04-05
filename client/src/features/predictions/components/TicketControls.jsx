@@ -37,6 +37,8 @@ function TicketControls({
   minOddsThreshold,
   setMinOddsThreshold,
   winnerPredictions,
+  includeWinners,
+  setIncludeWinners,
   // Over 1.5 options
   includeOver15,
   setIncludeOver15,
@@ -120,8 +122,17 @@ function TicketControls({
           <FormControlLabel
             control={
               <Checkbox
+                checked={includeWinners}
+                onChange={(event) => setIncludeWinners(event.target.checked)}
+              />
+            }
+            label={`Include winners (${winnerPredictions.length})`}
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
                 checked={highConfidenceWinnersOnly}
-                disabled={!hasHighConfidenceWinners}
+                disabled={!includeWinners || !hasHighConfidenceWinners}
                 onChange={(event) =>
                   setHighConfidenceWinnersOnly(event.target.checked)
                 }
@@ -133,6 +144,7 @@ function TicketControls({
             control={
               <Checkbox
                 checked={overOddsWinnersOnly}
+                disabled={!includeWinners}
                 onChange={(event) =>
                   setOverOddsWinnersOnly(event.target.checked)
                 }
@@ -150,7 +162,7 @@ function TicketControls({
               if (Number.isFinite(val) && val > 0) setMinOddsThreshold(val);
             }}
             inputProps={{ min: 1.01, step: 0.05 }}
-            disabled={!overOddsWinnersOnly}
+            disabled={!includeWinners || !overOddsWinnersOnly}
             sx={{ width: 110 }}
           />
           <FormControlLabel

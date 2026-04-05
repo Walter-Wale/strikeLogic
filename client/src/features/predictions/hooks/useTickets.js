@@ -24,6 +24,7 @@ export function useTickets({
   const [topOver25Percentage, setTopOver25Percentage] = useState(30);
   const [topBTTSOnly, setTopBTTSOnly] = useState(false);
   const [topBTTSPercentage, setTopBTTSPercentage] = useState(30);
+  const [includeWinners, setIncludeWinners] = useState(true);
   const [includeOver15, setIncludeOver15] = useState(false);
   const [includeOver25, setIncludeOver25] = useState(false);
   const [includeBTTS, setIncludeBTTS] = useState(false);
@@ -62,6 +63,7 @@ export function useTickets({
     topOver25Percentage,
     topBTTSOnly,
     topBTTSPercentage,
+    includeWinners,
     includeOver15,
     includeOver25,
     includeBTTS,
@@ -97,6 +99,7 @@ export function useTickets({
     topOver25Percentage,
     topBTTSOnly,
     topBTTSPercentage,
+    includeWinners,
     includeOver15,
     includeOver25,
     includeBTTS,
@@ -214,6 +217,8 @@ export function useTickets({
     setTopBTTSOnly,
     topBTTSPercentage,
     setTopBTTSPercentage,
+    includeWinners,
+    setIncludeWinners,
     includeOver15,
     setIncludeOver15,
     includeOver25,

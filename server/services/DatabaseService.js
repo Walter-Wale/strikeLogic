@@ -8,6 +8,16 @@ const db = require("../models");
 const { Op } = require("sequelize");
 
 class DatabaseService {
+  _chunkArray(items, chunkSize = 500) {
+    const chunks = [];
+
+    for (let index = 0; index < items.length; index += chunkSize) {
+      chunks.push(items.slice(index, index + chunkSize));
+    }
+
+    return chunks;
+  }
+
   _formatLocalDate(date) {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -72,6 +82,51 @@ class DatabaseService {
       console.error("Error getting/creating team:", error);
       throw error;
     }
+  }
+
+  async _resolveTeamsByName(teamNames) {
+    const uniqueTeamNames = [
+      ...new Set(teamNames.map((name) => String(name || "").trim()).filter(Boolean)),
+    ];
+
+    if (uniqueTeamNames.length === 0) {
+      return new Map();
+    }
+
+    const existingTeams = await db.Team.findAll({
+      where: {
+        name: {
+          [Op.in]: uniqueTeamNames,
+        },
+      },
+    });
+
+    const existingTeamMap = new Map(
+      existingTeams.map((team) => [team.name, team]),
+    );
+
+    const missingTeamNames = uniqueTeamNames.filter(
+      (name) => !existingTeamMap.has(name),
+    );
+
+    if (missingTeamNames.length > 0) {
+      await db.Team.bulkCreate(
+        missingTeamNames.map((name) => ({ name })),
+        {
+          ignoreDuplicates: true,
+        },
+      );
+    }
+
+    const resolvedTeams = await db.Team.findAll({
+      where: {
+        name: {
+          [Op.in]: uniqueTeamNames,
+        },
+      },
+    });
+
+    return new Map(resolvedTeams.map((team) => [team.name, team]));
   }
 
   /**
@@ -189,82 +244,95 @@ class DatabaseService {
    */
   async saveMatches(matchesArray) {
     try {
-      // Collect all unique team names across the batch and resolve them in parallel.
-      // A 50-match batch previously ran 100+ sequential DB queries; now it's one
-      // parallel fan-out then a bulk match upsert.
-      const allTeamNames = [
-        ...new Set(matchesArray.flatMap((m) => [m.homeTeam, m.awayTeam])),
-      ];
-      const teamInstances = await Promise.all(
-        allTeamNames.map((name) => this.getOrCreateTeam(name)),
-      );
-      const teamMap = new Map(
-        allTeamNames.map((name, i) => [name, teamInstances[i]]),
-      );
+      if (!Array.isArray(matchesArray) || matchesArray.length === 0) {
+        return [];
+      }
 
-      // Save all matches in parallel using the pre-built team map
-      const savedMatches = await Promise.all(
-        matchesArray.map(async (matchData) => {
-          const homeTeam = teamMap.get(matchData.homeTeam);
-          const awayTeam = teamMap.get(matchData.awayTeam);
+      const allTeamNames = matchesArray.flatMap((match) => [
+        match.homeTeam,
+        match.awayTeam,
+      ]);
+      const teamMap = await this._resolveTeamsByName(allTeamNames);
 
-          // Prepare data with team IDs
-          const dbMatchData = {
-            flashscore_id: matchData.flashscoreId,
-            match_date: matchData.matchDate,
-            match_time: matchData.matchTime,
-            home_team_id: homeTeam.id,
-            away_team_id: awayTeam.id,
-            league_name: matchData.leagueName || matchData.league_name,
-            is_synced: matchData.isSynced || false,
-            flashscore_url: matchData.matchUrl || null,
-            odds_home: matchData.oddsHome ?? null,
-            odds_draw: matchData.oddsDraw ?? null,
-            odds_away: matchData.oddsAway ?? null,
-          };
+      const matchRecords = matchesArray.map((matchData) => {
+        const homeTeam = teamMap.get(String(matchData.homeTeam || "").trim());
+        const awayTeam = teamMap.get(String(matchData.awayTeam || "").trim());
 
-          const [match, created] = await db.Match.findOrCreate({
-            where: { flashscore_id: dbMatchData.flashscore_id },
-            defaults: dbMatchData,
-          });
+        if (!homeTeam || !awayTeam) {
+          throw new Error(
+            `Could not resolve teams for match ${matchData.homeTeam} vs ${matchData.awayTeam}`,
+          );
+        }
 
-          if (!created) {
-            await match.update(dbMatchData);
-          }
+        return {
+          flashscore_id: matchData.flashscoreId,
+          match_date: this._normalizeDateOnly(matchData.matchDate),
+          match_time: this._normalizeTimeOnly(matchData.matchTime),
+          home_team_id: homeTeam.id,
+          away_team_id: awayTeam.id,
+          league_name: matchData.leagueName || matchData.league_name || null,
+          is_synced: matchData.isSynced || false,
+          flashscore_url: matchData.matchUrl || matchData.flashscoreUrl || null,
+          odds_home: matchData.oddsHome ?? null,
+          odds_draw: matchData.oddsDraw ?? null,
+          odds_away: matchData.oddsAway ?? null,
+        };
+      });
 
-          await match.reload({
-            include: [
-              { model: db.Team, as: "homeTeam", attributes: ["id", "name"] },
-              { model: db.Team, as: "awayTeam", attributes: ["id", "name"] },
-            ],
-          });
+      for (const chunk of this._chunkArray(matchRecords, 200)) {
+        await db.Match.bulkCreate(chunk, {
+          updateOnDuplicate: [
+            "match_date",
+            "match_time",
+            "home_team_id",
+            "away_team_id",
+            "league_name",
+            "is_synced",
+            "flashscore_url",
+            "odds_home",
+            "odds_draw",
+            "odds_away",
+          ],
+        });
+      }
 
-          const data = match.toJSON();
-          return {
-            id: data.id,
-            flashscoreId: data.flashscore_id,
-            matchDate: data.match_date,
-            matchTime: data.match_time,
-            homeTeam: data.homeTeam?.name || "Unknown",
-            awayTeam: data.awayTeam?.name || "Unknown",
-            homeTeamId: data.home_team_id,
-            awayTeamId: data.away_team_id,
-            leagueName: data.league_name,
-            isSynced: data.is_synced,
-            h2hScraped: data.is_synced,
-            flashscoreUrl: data.flashscore_url || null,
-            oddsHome:
-              data.odds_home != null ? parseFloat(data.odds_home) : null,
-            oddsDraw:
-              data.odds_draw != null ? parseFloat(data.odds_draw) : null,
-            oddsAway:
-              data.odds_away != null ? parseFloat(data.odds_away) : null,
-            status: "scheduled",
-          };
-        }),
+      const savedMatches = await db.Match.findAll({
+        where: {
+          flashscore_id: {
+            [Op.in]: matchRecords.map((match) => match.flashscore_id),
+          },
+        },
+        include: [
+          { model: db.Team, as: "homeTeam", attributes: ["id", "name"] },
+          { model: db.Team, as: "awayTeam", attributes: ["id", "name"] },
+        ],
+      });
+
+      const savedMatchMap = new Map(
+        savedMatches.map((match) => [match.flashscore_id, match.toJSON()]),
       );
 
-      return savedMatches;
+      return matchRecords
+        .map((record) => savedMatchMap.get(record.flashscore_id))
+        .filter(Boolean)
+        .map((data) => ({
+          id: data.id,
+          flashscoreId: data.flashscore_id,
+          matchDate: data.match_date,
+          matchTime: data.match_time,
+          homeTeam: data.homeTeam?.name || "Unknown",
+          awayTeam: data.awayTeam?.name || "Unknown",
+          homeTeamId: data.home_team_id,
+          awayTeamId: data.away_team_id,
+          leagueName: data.league_name,
+          isSynced: data.is_synced,
+          h2hScraped: data.is_synced,
+          flashscoreUrl: data.flashscore_url || null,
+          oddsHome: data.odds_home != null ? parseFloat(data.odds_home) : null,
+          oddsDraw: data.odds_draw != null ? parseFloat(data.odds_draw) : null,
+          oddsAway: data.odds_away != null ? parseFloat(data.odds_away) : null,
+          status: "scheduled",
+        }));
     } catch (error) {
       console.error("Error saving matches:", error);
       throw error;
@@ -348,16 +416,11 @@ class DatabaseService {
 
       const recordsToInsert = [];
 
-      // Resolve all unique team names in parallel
-      const allTeamNames = [
-        ...new Set(h2hArray.flatMap((h) => [h.homeTeam, h.awayTeam])),
-      ];
-      const teamInstances = await Promise.all(
-        allTeamNames.map((name) => this.getOrCreateTeam(name)),
-      );
-      const teamMap = new Map(
-        allTeamNames.map((name, i) => [name, teamInstances[i]]),
-      );
+      const allTeamNames = h2hArray.flatMap((history) => [
+        history.homeTeam,
+        history.awayTeam,
+      ]);
+      const teamMap = await this._resolveTeamsByName(allTeamNames);
 
       for (const h2hData of h2hArray) {
         const homeTeam = teamMap.get(h2hData.homeTeam);

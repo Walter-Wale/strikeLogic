@@ -27,14 +27,21 @@ export function buildTicketPredictions({
   over15Predictions,
   over25Predictions,
   bttsPredictions,
+  includeWinners,
   includeOver15,
   includeOver25,
   includeBTTS,
 }) {
-  const pool = winnerPredictions.map((prediction) => ({
-    ...prediction,
-    ticketMarket: "winner",
-  }));
+  const pool = [];
+
+  if (includeWinners) {
+    pool.push(
+      ...winnerPredictions.map((prediction) => ({
+        ...prediction,
+        ticketMarket: "winner",
+      })),
+    );
+  }
 
   if (includeOver15) {
     pool.push(
