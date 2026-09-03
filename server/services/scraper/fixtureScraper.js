@@ -111,15 +111,47 @@ async function scrapeMatchesByDate(
 
     emitLog(io, `✓ Successfully loaded FlashScore`, "success");
 
-    // TODO: Check if we need to select a different date
-    // For now, we'll assume we're getting today's matches
-    const today = new Date().toISOString().split("T")[0];
-    if (date !== today) {
+    // FlashScore's football page always opens on today's date; there is no
+    // date-specific URL. To reach a different date we drive its day-picker
+    // "Previous day" / "Next day" arrows (button[data-day-picker-arrow]),
+    // which reload the match list via AJAX without changing the URL.
+    const todayParts = new Date()
+      .toISOString()
+      .split("T")[0]
+      .split("-")
+      .map(Number);
+    const targetParts = date.split("-").map(Number);
+    const dayOffset = Math.round(
+      (Date.UTC(targetParts[0], targetParts[1] - 1, targetParts[2]) -
+        Date.UTC(todayParts[0], todayParts[1] - 1, todayParts[2])) /
+        (1000 * 60 * 60 * 24),
+    );
+
+    if (dayOffset !== 0) {
+      const arrowSelector = `button[data-day-picker-arrow="${dayOffset > 0 ? "next" : "prev"}"]`;
+
       emitLog(
         io,
-        `⚠️ Date picker interaction not yet implemented. Showing today's matches instead of ${date}`,
-        "warning",
+        `Navigating day picker ${Math.abs(dayOffset)} day(s) ${dayOffset > 0 ? "forward" : "back"} to reach ${date}...`,
+        "info",
       );
+
+      for (let i = 0; i < Math.abs(dayOffset); i++) {
+        const arrow = await page.$(arrowSelector);
+        if (!arrow) {
+          emitLog(
+            io,
+            `⚠️ Day picker arrow not found. Showing today's matches instead of ${date}`,
+            "warning",
+          );
+          break;
+        }
+        await arrow.click();
+        await delayWithJitter(
+          scrapingConfig.delays.fixturePageLoad,
+          scrapingConfig.delays.jitterMax,
+        );
+      }
     }
 
     // Wait for matches to load
